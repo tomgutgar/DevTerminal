@@ -1,0 +1,16 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Config local con secretos
+config.toml
+.env
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Documentación interna: no se publica
+docs/
+CLAUDE.md
