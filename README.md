@@ -4,12 +4,9 @@
 
 DevTerminal reimplements nothing: it acts as a unified control panel over the tools you already use — `git`, `gh`, `docker`, `kubectl`, `pacman`, `journalctl`, `ssh` — so you can stop juggling terminals and remembering flags.
 
-```
-┌ DevTerminal ─────────────────────────────────────────────────────────────┐
-│ 1 Dashboard  2 Git  3 GitHub  4 Docker  5 K8s  6 Servers  7 Processes    │
-│              8 Pacman  9 System                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+## Screenshots
+
+![DevTerminal dashboard](assets/screenshot-dashboard.png)
 
 ## Modules
 
