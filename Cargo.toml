@@ -1,6 +1,6 @@
 [package]
 name = "devterminal"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 edition = "2021"
 description = "Terminal Workspace Manager for Linux"
 license = "GPL-3.0-or-later"
