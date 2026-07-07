@@ -11,7 +11,7 @@ pub struct Config {
     pub servers: Vec<Server>,
 }
 
-/// Servidor remoto definido por el usuario en config.toml.
+/// Remote server defined by the user in config.toml.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
     pub alias: String,
@@ -48,7 +48,7 @@ pub fn load() -> Result<Config> {
     }
 }
 
-/// Expande el prefijo `~` a $HOME.
+/// Expands the `~` prefix to $HOME.
 pub fn expand_home(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~") {
         if let Some(home) = env::var_os("HOME") {
@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parsea_config_y_aplica_defaults() {
+    fn parses_config_and_applies_defaults() {
         let c: Config = toml::from_str(
             r#"
 workspaces = ["~/Projects"]

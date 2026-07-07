@@ -9,7 +9,7 @@ use crate::theme;
 use crate::ui::ListView;
 
 
-/// Color según la columna STATUS de `kubectl get pods`.
+/// Color from the STATUS column of `kubectl get pods`.
 fn pod_status_color(status: &str) -> Color {
     match status {
         "Running" | "Completed" => theme::p().green,
@@ -20,7 +20,7 @@ fn pod_status_color(status: &str) -> Color {
     }
 }
 
-// (título, recurso kubectl, con namespace)
+// (title, kubectl resource, namespaced)
 const VIEWS: [(&str, &str, bool); 5] = [
     ("Pods", "pods", true),
     ("Deployments", "deployments", true),
@@ -47,7 +47,7 @@ impl K8s {
         VIEWS[self.view].2
     }
 
-    /// id = "ns nombre" para recursos con namespace, "nombre" para el resto.
+    /// id = "ns name" for namespaced resources, "name" for the rest.
     fn split_id(id: &str) -> (Option<&str>, &str) {
         match id.split_once(' ') {
             Some((ns, name)) => (Some(ns), name),
@@ -75,7 +75,7 @@ impl Module for K8s {
 
     fn refresh(&mut self) {
         if !has_bin("kubectl") {
-            self.list.set_items(vec![("kubectl no está instalado".into(), String::new())]);
+            self.list.set_items(vec![("kubectl is not installed".into(), String::new())]);
             return;
         }
         let mut cmd = vec!["kubectl".to_string(), "get".into(), self.resource().into()];
@@ -97,13 +97,13 @@ impl Module for K8s {
                         } else {
                             cols.first().unwrap_or(&"").to_string()
                         };
-                        // STATUS es la 4ª columna en `kubectl get pods -A` (ns name ready STATUS ...).
+                        // STATUS is the 4th column in `kubectl get pods -A` (ns name ready STATUS ...).
                         let color = is_pods.then(|| cols.get(3).copied().unwrap_or("")).map(pod_status_color);
                         (l.to_string(), id, color)
                     })
                     .collect();
                 if rows.is_empty() {
-                    self.list.set_items(vec![("(vacío)".into(), String::new())]);
+                    self.list.set_items(vec![("(empty)".into(), String::new())]);
                 } else {
                     self.list.set_items_styled(rows);
                 }
@@ -148,7 +148,7 @@ impl Module for K8s {
                 show: true,
             },
             KeyCode::Char('c') if self.view == 1 => Action::Prompt {
-                label: "Número de réplicas".into(),
+                label: "Number of replicas".into(),
                 template: {
                     let mut c = self.kubectl(&id, &["scale", "deployment"]);
                     c.push("--replicas={}".into());
@@ -159,7 +159,7 @@ impl Module for K8s {
             },
             KeyCode::Char('k') => Action::Run {
                 cmd: self.kubectl(&id, &["delete", self.resource()]),
-                confirm: Some(format!("¿Eliminar {} {id}?", self.resource())),
+                confirm: Some(format!("Delete {} {id}?", self.resource())),
                 show: true,
             },
             _ => Action::Ignored,
@@ -167,7 +167,7 @@ impl Module for K8s {
     }
 
     fn footer(&self) -> String {
-        "v vista · Enter logs/describe · e shell · t rollout restart · c escalar · k eliminar".into()
+        "v view · Enter logs/describe · e shell · t rollout restart · c scale · k delete".into()
     }
 
     fn accent(&self) -> Color {

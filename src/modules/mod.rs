@@ -15,32 +15,32 @@ use ratatui::Frame;
 
 use crate::config::Config;
 
-/// Lo que un módulo pide al bucle principal tras una tecla.
+/// What a module asks the main loop to do after a key press.
 pub enum Action {
-    /// La tecla no es del módulo: probar atajos globales.
+    /// The key is not the module's: try the global shortcuts.
     Ignored,
-    /// Consumida, nada que hacer.
+    /// Consumed, nothing to do.
     Handled,
-    /// Consumida; refrescar el módulo *después* de dibujar el frame
-    /// (los cambios de vista responden al instante aunque el comando tarde).
+    /// Consumed; refresh the module *after* drawing the frame
+    /// (view changes respond instantly even if the command is slow).
     Refresh,
-    /// Ejecutar comando capturando salida. `confirm` abre diálogo antes;
-    /// `show` muestra la salida en un panel al terminar.
+    /// Run a command capturing output. `confirm` opens a dialog first
+    /// (destructive actions); `show` displays the output in a pane when done.
     Run {
         cmd: Vec<String>,
         confirm: Option<String>,
         show: bool,
     },
-    /// Suspender la TUI y ejecutar a pantalla completa (ssh, yazi, btop...).
+    /// Suspend the TUI and run full-screen (ssh, yazi, btop...).
     Interactive(Vec<String>),
-    /// Pedir texto al usuario; "{}" en template se sustituye por la entrada.
+    /// Ask the user for text; "{}" in the template is replaced with the input.
     Prompt {
         label: String,
         template: Vec<String>,
         interactive: bool,
         show: bool,
     },
-    /// Mostrar texto en un panel scrollable.
+    /// Display text in a scrollable pane.
     Show { title: String, text: String },
 }
 
@@ -49,13 +49,13 @@ pub trait Module {
     fn refresh(&mut self);
     fn draw(&mut self, f: &mut Frame, area: Rect);
     fn on_key(&mut self, key: KeyEvent) -> Action;
-    /// Atajos propios para la barra inferior.
+    /// The module's own shortcuts for the bottom bar.
     fn footer(&self) -> String;
-    /// Color de identidad del módulo (borde, texto, pestaña).
+    /// Module identity color (border, text, tab).
     fn accent(&self) -> Color {
         Color::Gray
     }
-    /// Texto que copia la tecla global `y` (id o línea seleccionada).
+    /// Text copied by the global `y` key (id or selected line).
     fn clip(&self) -> Option<String> {
         None
     }

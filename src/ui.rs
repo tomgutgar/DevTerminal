@@ -9,7 +9,7 @@ pub fn block(title: &str) -> Block<'static> {
     block_c(title, Color::DarkGray)
 }
 
-/// Bloque con borde y título en el color de identidad del módulo.
+/// Block with border and title in the module's identity color.
 pub fn block_c(title: &str, color: Color) -> Block<'static> {
     Block::default()
         .borders(Borders::ALL)
@@ -19,7 +19,7 @@ pub fn block_c(title: &str, color: Color) -> Block<'static> {
         .title(format!(" {title} "))
 }
 
-/// Rect centrado al pct% del área dada (overlays).
+/// Rect centered at pct% of the given area (overlays).
 pub fn centered(area: Rect, pct_x: u16, pct_y: u16) -> Rect {
     let w = area.width * pct_x / 100;
     let h = area.height * pct_y / 100;
@@ -31,15 +31,15 @@ pub fn centered(area: Rect, pct_x: u16, pct_y: u16) -> Rect {
     )
 }
 
-/// Fila de la lista: línea renderizable (con spans de colores), texto plano
-/// para filtrar/copiar y un id para las acciones.
+/// List row: renderable line (with colored spans), plain text
+/// for filtering/copying and an id for the actions.
 struct Row {
     line: Line<'static>,
     text: String,
     id: String,
 }
 
-/// Lista con selección (W/S) y filtro (/ o F) compartida por todos los módulos.
+/// List with selection (W/S) and filter (/ or F) shared by every module.
 pub struct ListView {
     items: Vec<Row>,
     pub state: ListState,
@@ -65,7 +65,7 @@ impl ListView {
         self.clamp();
     }
 
-    /// Como `set_items`, pero cada fila puede fijar su propio color (estado: running, error...).
+    /// Like `set_items`, but each row may set its own color (state: running, error...).
     pub fn set_items_styled(&mut self, items: Vec<(String, String, Option<Color>)>) {
         self.items = items
             .into_iter()
@@ -80,7 +80,7 @@ impl ListView {
         self.clamp();
     }
 
-    /// Filas con spans de varios colores (composición título/valor, URLs...).
+    /// Rows with multi-colored spans (title/value composition, URLs...).
     pub fn set_items_rich(&mut self, items: Vec<(Line<'static>, String)>) {
         self.items = items
             .into_iter()
@@ -105,7 +105,7 @@ impl ListView {
         self.state.selected().and_then(|i| vis.get(i)).map(|r| r.id.clone())
     }
 
-    /// Texto a copiar con `y`: el id si existe (pid, hash, ruta...), si no la línea visible.
+    /// Text copied by `y`: the id if there is one (pid, hash, path...), else the visible line.
     pub fn clip(&self) -> Option<String> {
         let vis = self.visible();
         let row = self.state.selected().and_then(|i| vis.get(i))?;
@@ -123,7 +123,7 @@ impl ListView {
         }
     }
 
-    /// Devuelve true si la tecla fue consumida por la lista.
+    /// Returns true if the key was consumed by the list.
     pub fn key(&mut self, key: KeyEvent) -> bool {
         if self.filtering {
             match key.code {
@@ -170,7 +170,7 @@ impl ListView {
         let title = if self.filter.is_empty() && !self.filtering {
             title.to_string()
         } else {
-            format!("{title} — filtro: {}▏", self.filter)
+            format!("{title} — filter: {}▏", self.filter)
         };
         let items: Vec<ListItem> = self
             .visible()

@@ -16,11 +16,11 @@ use crate::ui::block_c;
 pub struct Dashboard {
     sys: System,
     cpu: f32,
-    mem: (u64, u64),  // usado, total (bytes)
+    mem: (u64, u64),  // used, total (bytes)
     swap: (u64, u64),
-    disks: Vec<(String, f64, f64)>, // punto de montaje, usado GiB, total GiB
+    disks: Vec<(String, f64, f64)>, // mount point, used GiB, total GiB
     info: Vec<(&'static str, String)>,
-    primed: bool, // ya hay una muestra previa de CPU (el % es real sin dormir)
+    primed: bool, // a previous CPU sample exists (the % is real without sleeping)
 }
 
 impl Dashboard {
@@ -47,9 +47,9 @@ impl Module for Dashboard {
     }
 
     fn refresh(&mut self) {
-        // El % de CPU se calcula entre dos muestras. Solo la primera vez hay
-        // que esperar el intervalo mínimo; después la muestra del refresco
-        // anterior ya sirve de base y no se duerme nada.
+        // The CPU % is computed between two samples. Only the first time do we
+        // have to wait the minimum interval; afterwards the sample from the
+        // previous refresh already serves as the baseline and nothing sleeps.
         self.sys.refresh_cpu_usage();
         if !self.primed {
             std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
@@ -61,12 +61,12 @@ impl Module for Dashboard {
         self.mem = (self.sys.used_memory(), self.sys.total_memory().max(1));
         self.swap = (self.sys.used_swap(), self.sys.total_swap().max(1));
 
-        // btrfs monta la misma partición en varios subvolúmenes (/, /home...):
-        // se deduplica por dispositivo+tamaño y se muestra el primer montaje.
-        let mut vistos = HashSet::new();
+        // btrfs mounts the same partition on several subvolumes (/, /home...):
+        // deduplicate by device+size and show the first mount point.
+        let mut seen = HashSet::new();
         self.disks = Disks::new_with_refreshed_list()
             .iter()
-            .filter(|d| vistos.insert((d.name().to_owned(), d.total_space())))
+            .filter(|d| seen.insert((d.name().to_owned(), d.total_space())))
             .map(|d| {
                 let total = d.total_space();
                 let used = total - d.available_space();
@@ -75,15 +75,15 @@ impl Module for Dashboard {
             .collect();
 
         let load = System::load_average();
-        let fecha = runner::run_cmd(&["date".into(), "+%A %d/%m/%Y  %H:%M".into()])
+        let date = runner::run_cmd(&["date".into(), "+%A %d/%m/%Y  %H:%M".into()])
             .unwrap_or_default();
-        // ponytail: docker se consulta al refrescar, no en vivo; refresco asíncrono cuando duela
+        // ponytail: docker is queried on refresh, not live; async refresh when it hurts
         let docker = if runner::has_bin("docker") {
             runner::run_cmd(&["docker".into(), "ps".into(), "-q".into()])
-                .map(|o| format!("{} contenedores activos", o.lines().count()))
-                .unwrap_or_else(|_| "daemon parado".into())
+                .map(|o| format!("{} containers running", o.lines().count()))
+                .unwrap_or_else(|_| "daemon stopped".into())
         } else {
-            "no instalado".into()
+            "not installed".into()
         };
         self.info = vec![
             (
@@ -100,9 +100,9 @@ impl Module for Dashboard {
                 "Uptime",
                 format!("{} h {} min", System::uptime() / 3600, System::uptime() % 3600 / 60),
             ),
-            ("Carga", format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen)),
+            ("Load", format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen)),
             ("Docker", docker),
-            ("Fecha", fecha.trim().to_string()),
+            ("Date", date.trim().to_string()),
         ];
     }
 
@@ -120,8 +120,8 @@ impl Module for Dashboard {
         ])
         .areas(left);
 
-        // Etiqueta del gauge en blanco negrita: legible tanto sobre la parte
-        // llena de la barra como sobre la vacía (antes era del color de la barra).
+        // Gauge label in bold white: readable both over the filled part of
+        // the bar and over the empty part (it used to be the bar's color).
         let gauge = |title: String, ratio: f64, color: Color| {
             let ratio = ratio.clamp(0.0, 1.0);
             Gauge::default()
@@ -151,8 +151,8 @@ impl Module for Dashboard {
             g_swap,
         );
 
-        // Composición título/valor: montaje en acento, cifras en blanco,
-        // % de uso coloreado por umbral.
+        // Title/value composition: mount point in the accent color, figures
+        // in white, usage % colored by threshold.
         let val = Style::default().fg(Color::White);
         let disk_lines: Vec<Line> = self
             .disks
@@ -174,7 +174,7 @@ impl Module for Dashboard {
             })
             .collect();
         f.render_widget(
-            Paragraph::new(disk_lines).block(block_c("Discos", self.accent())),
+            Paragraph::new(disk_lines).block(block_c("Disks", self.accent())),
             disks,
         );
 
@@ -195,7 +195,7 @@ impl Module for Dashboard {
             })
             .collect();
         f.render_widget(
-            Paragraph::new(info_lines).block(block_c("Sistema", self.accent())),
+            Paragraph::new(info_lines).block(block_c("System", self.accent())),
             right,
         );
     }

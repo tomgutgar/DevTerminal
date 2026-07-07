@@ -6,7 +6,7 @@ mod ui;
 
 use std::time::{Duration, Instant};
 
-/// Cadencia del auto-refresco del módulo activo (dashboard, puertos, docker...).
+/// Auto-refresh cadence for the active module (dashboard, ports, docker...).
 const AUTO_REFRESH: Duration = Duration::from_secs(3);
 
 use anyhow::Result;
@@ -31,10 +31,10 @@ struct App {
     active: usize,
     overlay: Option<Overlay>,
     last_refresh: Instant,
-    /// Refrescar tras dibujar el frame: la tecla responde al instante y el
-    /// comando (docker, gh, kubectl...) corre con el ⟳ ya en pantalla.
+    /// Refresh after drawing the frame: the key responds instantly and the
+    /// command (docker, gh, kubectl...) runs with the ⟳ already on screen.
     pending_refresh: bool,
-    /// Aviso efímero en el pie (p. ej. "Copiado"); se borra con la siguiente tecla.
+    /// Ephemeral notice in the footer (e.g. "Copied"); cleared on the next key press.
     notice: Option<String>,
 }
 
@@ -60,7 +60,7 @@ impl App {
         }
     }
 
-    /// Refresca el módulo activo y reinicia el reloj del auto-refresco.
+    /// Refreshes the active module and restarts the auto-refresh clock.
     fn refresh_active(&mut self) {
         self.modules[self.active].refresh();
         self.last_refresh = Instant::now();
@@ -69,7 +69,7 @@ impl App {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         loop {
             terminal.draw(|f| self.draw(f))?;
-            // Refresco diferido: el frame con la vista nueva ya está pintado.
+            // Deferred refresh: the frame with the new view is already painted.
             if self.pending_refresh {
                 self.pending_refresh = false;
                 self.refresh_active();
@@ -119,7 +119,7 @@ impl App {
         }
     }
 
-    /// true = salir de la aplicación.
+    /// true = quit the application.
     fn global_key(&mut self, key: KeyEvent) -> bool {
         let n = self.modules.len();
         let prev = self.active;
@@ -135,8 +135,8 @@ impl App {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 if let Some(text) = self.modules[self.active].clip() {
                     self.notice = Some(match runner::copy_clip(&text) {
-                        Ok(()) => format!("Copiado: {text}"),
-                        Err(e) => format!("Portapapeles: {e}"),
+                        Ok(()) => format!("Copied: {text}"),
+                        Err(e) => format!("Clipboard: {e}"),
                     });
                 }
             }
@@ -149,7 +149,7 @@ impl App {
             _ => {}
         }
         if self.active != prev {
-            // Módulo nuevo en pantalla al instante; sus datos llegan justo después.
+            // New module on screen instantly; its data arrives right after.
             self.pending_refresh = true;
         }
         false
@@ -202,8 +202,8 @@ impl App {
         }
     }
 
-    /// Ejecuta capturando salida; muestra panel si show o si falla. Refresca el módulo.
-    /// Si tardó lo bastante como para que el usuario haya cambiado de ventana, notifica.
+    /// Runs capturing output; shows a pane if `show` or on failure. Refreshes the module.
+    /// If it took long enough for the user to have switched windows, notify.
     fn exec(&mut self, cmd: &[String], show: bool) {
         let start = Instant::now();
         match runner::run_cmd(cmd) {
@@ -222,12 +222,12 @@ impl App {
             }
         }
         if start.elapsed() > Duration::from_secs(10) {
-            runner::notify("Comando terminado", &cmd.join(" "));
+            runner::notify("Command finished", &cmd.join(" "));
         }
         self.refresh_active();
     }
 
-    /// Suspende la TUI y cede el terminal completo al comando (ssh, yazi, btop...).
+    /// Suspends the TUI and hands the full terminal over to the command (ssh, yazi, btop...).
     fn run_interactive(&mut self, terminal: &mut DefaultTerminal, cmd: &[String]) {
         if cmd.is_empty() {
             return;
@@ -281,7 +281,7 @@ impl App {
             None => {
                 let hints = self.modules[self.active].footer();
                 let sep = if hints.is_empty() { "" } else { " · " };
-                format!(" {hints}{sep}y copiar · Tab/A/D módulo · 1-9 saltar · R refrescar · Q salir")
+                format!(" {hints}{sep}y copy · Tab/A/D module · 1-9 jump · R refresh · Q quit")
             }
         };
         f.render_widget(
@@ -295,7 +295,7 @@ impl App {
                 f.render_widget(Clear, area);
                 f.render_widget(
                     Paragraph::new(text.as_str())
-                        .block(block(&format!("{title} — w/s scroll · Esc cierra")))
+                        .block(block(&format!("{title} — w/s scroll · Esc closes")))
                         .wrap(Wrap { trim: false })
                         .scroll((*scroll, 0)),
                     area,
@@ -305,8 +305,8 @@ impl App {
                 let area = centered(f.area(), 60, 25);
                 f.render_widget(Clear, area);
                 f.render_widget(
-                    Paragraph::new(format!("{msg}\n\nEnter/y confirmar · Esc/n cancelar"))
-                        .block(block("Confirmar"))
+                    Paragraph::new(format!("{msg}\n\nEnter/y confirm · Esc/n cancel"))
+                        .block(block("Confirm"))
                         .wrap(Wrap { trim: false }),
                     area,
                 );
@@ -315,8 +315,8 @@ impl App {
                 let area = centered(f.area(), 60, 25);
                 f.render_widget(Clear, area);
                 f.render_widget(
-                    Paragraph::new(format!("{label}\n\n> {input}▏\n\nEnter aceptar · Esc cancelar"))
-                        .block(block("Entrada"))
+                    Paragraph::new(format!("{label}\n\n> {input}▏\n\nEnter accept · Esc cancel"))
+                        .block(block("Input"))
                         .wrap(Wrap { trim: false }),
                     area,
                 );

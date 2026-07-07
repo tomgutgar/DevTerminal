@@ -9,18 +9,18 @@ use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::{block_c, ListView};
 
-const VIEWS: [&str; 2] = ["Logs", "Servicios"];
+const VIEWS: [&str; 2] = ["Logs", "Services"];
 
-/// journalctl (vista Logs) + unidades systemd (vista Servicios).
+/// journalctl (Logs view) + systemd units (Services view).
 pub struct Logs {
     view: usize,
     text: String,
     scroll: u16,
-    solo_errores: bool,
+    errors_only: bool,
     list: ListView,
 }
 
-/// Color según la columna ACTIVE/SUB de `systemctl list-units`.
+/// Color from the ACTIVE/SUB columns of `systemctl list-units`.
 fn unit_color(active: &str, sub: &str) -> Color {
     match (active, sub) {
         ("failed", _) | (_, "failed") => theme::p().red,
@@ -35,19 +35,19 @@ impl Logs {
             view: 0,
             text: String::new(),
             scroll: 0,
-            solo_errores: false,
+            errors_only: false,
             list: ListView::new(),
         }
     }
 
     fn refresh_logs(&mut self) {
         let mut cmd = vec!["journalctl".to_string(), "-n".into(), "400".into(), "--no-pager".into()];
-        if self.solo_errores {
+        if self.errors_only {
             cmd.push("-p".into());
             cmd.push("err".into());
         }
         self.text = run_cmd(&cmd).unwrap_or_else(|e| e.to_string());
-        // Empezar por el final, que es donde está lo reciente
+        // Start at the end, where the recent entries are
         self.scroll = (self.text.lines().count() as u16).saturating_sub(20);
     }
 
@@ -81,12 +81,12 @@ impl Logs {
 
 impl Module for Logs {
     fn title(&self) -> &'static str {
-        "Sistema"
+        "System"
     }
 
     fn refresh(&mut self) {
         if !has_bin("journalctl") {
-            self.text = "journalctl no disponible".into();
+            self.text = "journalctl not available".into();
             return;
         }
         match self.view {
@@ -97,13 +97,13 @@ impl Module for Logs {
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
         if self.view == 1 {
-            self.list.draw(f, area, "Sistema · [Servicios systemd]", self.accent());
+            self.list.draw(f, area, "System · [systemd services]", self.accent());
             return;
         }
-        let title = if self.solo_errores {
-            "Sistema · [journalctl · solo errores]"
+        let title = if self.errors_only {
+            "System · [journalctl · errors only]"
         } else {
-            "Sistema · [journalctl · todo]"
+            "System · [journalctl · all]"
         };
         f.render_widget(
             Paragraph::new(self.text.as_str())
@@ -163,7 +163,7 @@ impl Module for Logs {
                 Action::Handled
             }
             KeyCode::Char('e') => {
-                self.solo_errores = !self.solo_errores;
+                self.errors_only = !self.errors_only;
                 Action::Refresh
             }
             _ => Action::Ignored,
@@ -172,8 +172,8 @@ impl Module for Logs {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v servicios · w/s scroll · PgUp/PgDn página · e solo errores".into(),
-            _ => "v logs · Enter logs del servicio · u start · x stop · t restart".into(),
+            0 => "v services · w/s scroll · PgUp/PgDn page · e errors only".into(),
+            _ => "v logs · Enter service logs · u start · x stop · t restart".into(),
         }
     }
 

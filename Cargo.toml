@@ -2,16 +2,16 @@
 name = "devterminal"
 version = "1.0.0-rc.1"
 edition = "2021"
-description = "Terminal Workspace Manager para Linux"
-license = "PolyForm-Noncommercial-1.0.0"
+description = "Terminal Workspace Manager for Linux"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/tomgutgar/DevTerminal"
 
 [[bin]]
 name = "devc"
 path = "src/main.rs"
 
-# ponytail: crate único; dividir en workspace por módulo cuando los tiempos de compilación lo justifiquen
-# Sin bollard/octocrab/kube-rs a propósito: la filosofía es envolver los CLIs (docker, gh, kubectl)
+# ponytail: single crate; split into a per-module workspace when compile times justify it
+# No bollard/octocrab/kube-rs on purpose: the philosophy is to wrap the existing CLIs (docker, gh, kubectl)
 [dependencies]
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }

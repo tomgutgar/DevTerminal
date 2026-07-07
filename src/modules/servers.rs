@@ -10,12 +10,12 @@ use crate::runner::run_cmd;
 use crate::theme;
 use crate::ui::ListView;
 
-const VIEWS: [&str; 3] = ["Puertos", "SSH", "Red"];
+const VIEWS: [&str; 3] = ["Ports", "SSH", "Network"];
 
-/// Puertos de desarrollo con nombre propio fuera de los rangos de `es_puerto_dev`:
-/// bases de datos, colas, observabilidad, LLMs... (n8n 5678, ollama 11434, etc.).
+/// Named development ports outside the `is_dev_port` ranges:
+/// databases, queues, observability, LLMs... (n8n 5678, ollama 11434, etc.).
 const DEV_PORTS: &[u16] = &[
-    1025,  // smtp de pruebas (mailhog/maildev)
+    1025,  // test smtp (mailhog/maildev)
     1080, 1313, 1433, 1521, 1880, 1883, 2181, 2375, 2376, 2379, 2380,
     3100, 3200, 3306, 3690, 4200, 4222, 4317, 4318, 4321, 4443, 4566, 4646,
     5555, 5601, 5671, 5672,
@@ -28,10 +28,10 @@ const DEV_PORTS: &[u16] = &[
     33060, 35729, 50051, 54321, 54322, 61616,
 ];
 
-/// ¿Es un puerto típico de servidores de desarrollo? (~600 puertos: rangos de
-/// frameworks web, vite, postgres, redis, jupyter... + la lista con nombre).
-/// Deja fuera el ruido de escritorio: spotify (4070/57621), vscode, discord, cups...
-fn es_puerto_dev(port: u16) -> bool {
+/// Is this a typical development-server port? (~600 ports: web framework
+/// ranges, vite, postgres, redis, jupyter... plus the named list).
+/// Leaves out desktop noise: spotify (4070/57621), vscode, discord, cups...
+fn is_dev_port(port: u16) -> bool {
     matches!(port,
         3000..=3099          // node, react, rails, grafana
         | 4000..=4050        // phoenix, jekyll
@@ -40,23 +40,23 @@ fn es_puerto_dev(port: u16) -> bool {
         | 5432..=5440        // postgres
         | 6379..=6390        // redis
         | 7000..=7010        // cassandra, gotty
-        | 8000..=8099        // django, http alternativo
-        | 8440..=8450        // https alternativo
+        | 8000..=8099        // django, alternative http
+        | 8440..=8450        // alternative https
         | 8880..=8899        // jupyter
         | 9000..=9099        // php-fpm, minio, prometheus, kafka
     ) || DEV_PORTS.contains(&port)
 }
 
-/// Puertos TCP en escucha (servidores de desarrollo locales) + hosts SSH.
+/// Listening TCP ports (local dev servers) + SSH hosts.
 pub struct Servers {
     view: usize,
     list: ListView,
     servers: Vec<Server>,
-    /// Mostrar todos los puertos en escucha, no solo los de desarrollo.
-    todos: bool,
+    /// Show all listening ports, not just development ones.
+    show_all: bool,
 }
 
-/// Hosts de ~/.ssh/config (ignora patrones con comodines).
+/// Hosts from ~/.ssh/config (ignores wildcard patterns).
 pub fn parse_ssh_config(text: &str) -> Vec<String> {
     let mut hosts = Vec::new();
     for line in text.lines() {
@@ -72,7 +72,7 @@ pub fn parse_ssh_config(text: &str) -> Vec<String> {
     hosts
 }
 
-/// Una línea de `ss -tlnp` → (host, puerto, nombre proceso, pid, expuesto a la red).
+/// One `ss -tlnp` line → (host, port, process name, pid, exposed to the network).
 fn parse_ss_line(line: &str) -> Option<(String, String, String, String, bool)> {
     let cols: Vec<&str> = line.split_whitespace().collect();
     if cols.first() != Some(&"LISTEN") {
@@ -80,8 +80,8 @@ fn parse_ss_line(line: &str) -> Option<(String, String, String, String, bool)> {
     }
     let local = *cols.get(3)?;
     let (addr, port) = local.rsplit_once(':')?;
-    let expuesto = matches!(addr, "0.0.0.0" | "*" | "[::]" | "::");
-    let host = if expuesto || addr == "127.0.0.1" || addr == "[::1]" { "localhost" } else { addr };
+    let exposed = matches!(addr, "0.0.0.0" | "*" | "[::]" | "::");
+    let host = if exposed || addr == "127.0.0.1" || addr == "[::1]" { "localhost" } else { addr };
     let proc_tok = cols.get(5).copied().unwrap_or("");
     let name = proc_tok.split('"').nth(1).unwrap_or("?").to_string();
     let pid = proc_tok
@@ -90,16 +90,16 @@ fn parse_ss_line(line: &str) -> Option<(String, String, String, String, bool)> {
         .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
         .unwrap_or("")
         .to_string();
-    Some((host.to_string(), port.to_string(), name, pid, expuesto))
+    Some((host.to_string(), port.to_string(), name, pid, exposed))
 }
 
 impl Servers {
     pub fn new(servers: Vec<Server>) -> Self {
-        Self { view: 0, list: ListView::new(), servers, todos: false }
+        Self { view: 0, list: ListView::new(), servers, show_all: false }
     }
 
-    /// Cada puerto se pinta como URL real (el terminal la abre con Ctrl+clic)
-    /// con cada campo en su color. id = "pid\turl" para matar/abrir/copiar.
+    /// Each port is drawn as a real URL (the terminal opens it with Ctrl+click)
+    /// with each field in its own color. id = "pid\turl" for kill/open/copy.
     fn refresh_ports(&mut self) {
         let p = theme::p();
         let out = run_cmd(&["ss".into(), "-tlnp".into()]);
@@ -109,10 +109,10 @@ impl Servers {
                 .filter_map(parse_ss_line)
                 .filter(|(_, port, _, pid, _)| {
                     !pid.is_empty()
-                        && (self.todos
-                            || port.parse::<u16>().map(es_puerto_dev).unwrap_or(false))
+                        && (self.show_all
+                            || port.parse::<u16>().map(is_dev_port).unwrap_or(false))
                 })
-                .map(|(host, port, name, pid, expuesto)| {
+                .map(|(host, port, name, pid, exposed)| {
                     let url = format!("http://{host}:{port}");
                     let mut spans = vec![
                         Span::styled(
@@ -122,9 +122,9 @@ impl Servers {
                         Span::styled(format!(" {name}"), Style::default().fg(p.green)),
                         Span::styled(format!("  pid {pid}"), Style::default().fg(Color::DarkGray)),
                     ];
-                    if expuesto {
+                    if exposed {
                         spans.push(Span::styled(
-                            "  ⚠ expuesto a la red",
+                            "  ⚠ exposed to the network",
                             Style::default().fg(p.orange),
                         ));
                     }
@@ -135,7 +135,7 @@ impl Servers {
         };
         if rows.is_empty() {
             self.list.set_items(vec![(
-                "Sin servidores de desarrollo escuchando (t muestra todos los puertos)".into(),
+                "No development servers listening (t shows all ports)".into(),
                 String::new(),
             )]);
         } else {
@@ -177,15 +177,15 @@ impl Servers {
         }
         if rows.is_empty() {
             rows.push((
-                Line::raw("Sin hosts: añade entradas a ~/.ssh/config o [[servers]] en config.toml"),
+                Line::raw("No hosts: add entries to ~/.ssh/config or [[servers]] in config.toml"),
                 String::new(),
             ));
         }
         self.list.set_items_rich(rows);
     }
 
-    /// Interfaces (`ip -br addr`), ruta por defecto y DNS de /etc/resolv.conf.
-    fn refresh_red(&mut self) {
+    /// Interfaces (`ip -br addr`), default route and DNS from /etc/resolv.conf.
+    fn refresh_network(&mut self) {
         let mut rows: Vec<(String, String, Option<Color>)> = Vec::new();
         match run_cmd(&["ip".into(), "-br".into(), "addr".into()]) {
             Ok(o) => {
@@ -216,21 +216,21 @@ impl Servers {
 
 impl Module for Servers {
     fn title(&self) -> &'static str {
-        "Servidores"
+        "Servers"
     }
 
     fn refresh(&mut self) {
         match self.view {
             0 => self.refresh_ports(),
             1 => self.refresh_ssh(),
-            _ => self.refresh_red(),
+            _ => self.refresh_network(),
         }
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        let mut title = format!("Servidores · [{}]", VIEWS[self.view]);
+        let mut title = format!("Servers · [{}]", VIEWS[self.view]);
         if self.view == 0 {
-            title.push_str(if self.todos { " · todos" } else { " · solo dev" });
+            title.push_str(if self.show_all { " · all" } else { " · dev only" });
         }
         self.list.draw(f, area, &title, self.accent());
     }
@@ -244,15 +244,15 @@ impl Module for Servers {
             return Action::Refresh;
         }
         if self.view == 0 && key.code == KeyCode::Char('t') {
-            self.todos = !self.todos;
+            self.show_all = !self.show_all;
             return Action::Refresh;
         }
-        // Ping y traceroute no dependen de la fila seleccionada.
+        // Ping and traceroute don't depend on the selected row.
         if self.view == 2 {
             match key.code {
                 KeyCode::Char('p') => {
                     return Action::Prompt {
-                        label: "Host a hacer ping".into(),
+                        label: "Host to ping".into(),
                         template: vec!["ping".into(), "{}".into()],
                         interactive: true,
                         show: false,
@@ -260,7 +260,7 @@ impl Module for Servers {
                 }
                 KeyCode::Char('t') => {
                     return Action::Prompt {
-                        label: "Host para traceroute".into(),
+                        label: "Host to traceroute".into(),
                         template: vec!["traceroute".into(), "{}".into()],
                         interactive: true,
                         show: false,
@@ -277,7 +277,7 @@ impl Module for Servers {
                 let pid = id.split('\t').next().unwrap_or(&id).to_string();
                 Action::Run {
                     cmd: vec!["kill".into(), pid.clone()],
-                    confirm: Some(format!("¿Matar el proceso con pid {pid}?")),
+                    confirm: Some(format!("Kill the process with pid {pid}?")),
                     show: false,
                 }
             }
@@ -302,9 +302,9 @@ impl Module for Servers {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v vista · Enter/o abrir en navegador (o Ctrl+clic en la URL) · k matar proceso · t todos/dev".into(),
-            1 => "v vista · Enter conectar · c copiar clave (ssh-copy-id) · g generar claves".into(),
-            _ => "v vista · p ping · t traceroute".into(),
+            0 => "v view · Enter/o open in browser (or Ctrl+click the URL) · k kill process · t all/dev".into(),
+            1 => "v view · Enter connect · c copy key (ssh-copy-id) · g generate keys".into(),
+            _ => "v view · p ping · t traceroute".into(),
         }
     }
 
@@ -312,7 +312,7 @@ impl Module for Servers {
         theme::p().yellow
     }
 
-    /// En la vista de puertos, `y` copia la URL (lo útil); en el resto, el id.
+    /// In the ports view `y` copies the URL (the useful bit); elsewhere, the id.
     fn clip(&self) -> Option<String> {
         let id = self.list.clip()?;
         if self.view == 0 {
@@ -329,39 +329,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn filtra_puertos_de_desarrollo() {
+    fn filters_dev_ports() {
         for p in [3000, 5173, 5432, 5678, 8080, 8888, 9092, 11434] {
-            assert!(es_puerto_dev(p), "{p} debería ser puerto dev");
+            assert!(is_dev_port(p), "{p} should be a dev port");
         }
-        // spotify (4070/57621), cups (631), X11 (6000), aleatorio alto
+        // spotify (4070/57621), cups (631), X11 (6000), random high port
         for p in [4070, 57621, 631, 6000, 45231] {
-            assert!(!es_puerto_dev(p), "{p} no debería ser puerto dev");
+            assert!(!is_dev_port(p), "{p} should not be a dev port");
         }
     }
 
     #[test]
-    fn parsea_hosts() {
+    fn parses_hosts() {
         let cfg = "Host vps\n  HostName 1.2.3.4\nHost *\n  User root\nHost pi nas\n";
         assert_eq!(parse_ssh_config(cfg), vec!["vps", "pi", "nas"]);
     }
 
     #[test]
-    fn parsea_linea_ss() {
+    fn parses_ss_line() {
         let l = r#"LISTEN 0      511        127.0.0.1:3000       0.0.0.0:*    users:(("node",pid=12345,fd=20))"#;
-        let (host, port, name, pid, expuesto) = parse_ss_line(l).unwrap();
+        let (host, port, name, pid, exposed) = parse_ss_line(l).unwrap();
         assert_eq!(host, "localhost");
         assert_eq!(port, "3000");
         assert_eq!(name, "node");
         assert_eq!(pid, "12345");
-        assert!(!expuesto);
+        assert!(!exposed);
     }
 
     #[test]
-    fn detecta_expuesto_a_la_red() {
+    fn detects_network_exposed() {
         let l = r#"LISTEN 0      128          0.0.0.0:8080       0.0.0.0:*    users:(("python3",pid=999,fd=5))"#;
-        let (host, port, _, _, expuesto) = parse_ss_line(l).unwrap();
+        let (host, port, _, _, exposed) = parse_ss_line(l).unwrap();
         assert_eq!(host, "localhost");
         assert_eq!(port, "8080");
-        assert!(expuesto);
+        assert!(exposed);
     }
 }

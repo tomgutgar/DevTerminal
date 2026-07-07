@@ -8,7 +8,7 @@ use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
 
-const VIEWS: [&str; 5] = ["Contenedores", "Imágenes", "Volúmenes", "Redes", "Compose"];
+const VIEWS: [&str; 5] = ["Containers", "Images", "Volumes", "Networks", "Compose"];
 
 pub struct Docker {
     view: usize,
@@ -27,8 +27,8 @@ fn d(args: &[&str]) -> Vec<String> {
     v
 }
 
-/// Línea de `docker compose ls --all` → (proyecto, status, archivo compose).
-/// ponytail: si hay varios archivos (separados por coma) se usa el primero.
+/// `docker compose ls --all` line → (project, status, compose file).
+/// ponytail: if there are several files (comma-separated) the first one is used.
 pub fn parse_compose_line(line: &str) -> Option<(String, String, String)> {
     let cols: Vec<&str> = line.split_whitespace().collect();
     if cols.len() < 3 || cols[0] == "NAME" {
@@ -45,7 +45,7 @@ impl Module for Docker {
 
     fn refresh(&mut self) {
         if !has_bin("docker") {
-            self.list.set_items(vec![("docker no está instalado".into(), String::new())]);
+            self.list.set_items(vec![("docker is not installed".into(), String::new())]);
             return;
         }
         if self.view == 4 {
@@ -59,14 +59,14 @@ impl Module for Docker {
                             } else {
                                 Color::DarkGray
                             };
-                            // id = archivo compose: es lo que necesitan up/down/logs
+                            // id = compose file: it's what up/down/logs need
                             (format!("{name:<24} {status:<14} {file}"), file, Some(color))
                         })
                         .collect()
                 })
                 .unwrap_or_else(|e| vec![(format!("Error: {e}"), String::new(), None)]);
             if rows.is_empty() {
-                self.list.set_items(vec![("Sin proyectos compose".into(), String::new())]);
+                self.list.set_items(vec![("No compose projects".into(), String::new())]);
             } else {
                 self.list.set_items_styled(rows);
             }
@@ -86,7 +86,7 @@ impl Module for Docker {
                     .map(|l| {
                         let cols: Vec<&str> = l.split('\t').collect();
                         let id = cols.first().copied().unwrap_or("").to_string();
-                        // Estado (solo en la vista de contenedores): Up = verde, resto = rojo.
+                        // State (containers view only): Up = green, anything else = red.
                         let color = (self.view == 0)
                             .then(|| cols.get(2).copied().unwrap_or(""))
                             .map(|status| {
@@ -100,7 +100,7 @@ impl Module for Docker {
                     })
                     .collect();
                 if rows.is_empty() {
-                    self.list.set_items(vec![("(vacío)".into(), String::new())]);
+                    self.list.set_items(vec![("(empty)".into(), String::new())]);
                 } else {
                     self.list.set_items_styled(rows);
                 }
@@ -124,7 +124,7 @@ impl Module for Docker {
         if key.code == KeyCode::Char('P') {
             return Action::Run {
                 cmd: d(&["system", "prune", "-f"]),
-                confirm: Some("¿Ejecutar docker system prune? Elimina todo lo no usado.".into()),
+                confirm: Some("Run docker system prune? Removes everything unused.".into()),
                 show: true,
             };
         }
@@ -146,25 +146,25 @@ impl Module for Docker {
             }
             (0, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["rm", "-f", &id]),
-                confirm: Some(format!("¿Eliminar contenedor {id}?")),
+                confirm: Some(format!("Delete container {id}?")),
                 show: false,
             },
             (1, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["rmi", &id]),
-                confirm: Some(format!("¿Eliminar imagen {id}?")),
+                confirm: Some(format!("Delete image {id}?")),
                 show: true,
             },
             (2, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["volume", "rm", &id]),
-                confirm: Some(format!("¿Eliminar volumen {id}?")),
+                confirm: Some(format!("Delete volume {id}?")),
                 show: true,
             },
             (3, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["network", "rm", &id]),
-                confirm: Some(format!("¿Eliminar red {id}?")),
+                confirm: Some(format!("Delete network {id}?")),
                 show: true,
             },
-            // Compose: id = ruta del archivo compose del proyecto
+            // Compose: id = path of the project's compose file
             (4, KeyCode::Char('u')) => Action::Run {
                 cmd: d(&["compose", "-f", &id, "up", "-d"]),
                 confirm: None,
@@ -172,7 +172,7 @@ impl Module for Docker {
             },
             (4, KeyCode::Char('x')) => Action::Run {
                 cmd: d(&["compose", "-f", &id, "down"]),
-                confirm: Some(format!("¿docker compose down? ({id})")),
+                confirm: Some(format!("docker compose down? ({id})")),
                 show: true,
             },
             (4, KeyCode::Enter) => {
@@ -186,9 +186,9 @@ impl Module for Docker {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v vista · u start · x stop · t restart · Enter logs · e shell · i inspect · k eliminar · P prune".into(),
-            4 => "v vista · u up -d · x down · Enter logs".into(),
-            _ => "v vista · k eliminar · P prune".into(),
+            0 => "v view · u start · x stop · t restart · Enter logs · e shell · i inspect · k delete · P prune".into(),
+            4 => "v view · u up -d · x down · Enter logs".into(),
+            _ => "v view · k delete · P prune".into(),
         }
     }
 
@@ -206,15 +206,15 @@ mod tests {
     use super::parse_compose_line;
 
     #[test]
-    fn parsea_compose_ls() {
+    fn parses_compose_ls() {
         assert_eq!(parse_compose_line("NAME  STATUS  CONFIG FILES"), None);
         assert_eq!(
-            parse_compose_line("miapp    running(3)    /home/x/compose.yaml"),
-            Some(("miapp".into(), "running(3)".into(), "/home/x/compose.yaml".into()))
+            parse_compose_line("myapp    running(3)    /home/x/compose.yaml"),
+            Some(("myapp".into(), "running(3)".into(), "/home/x/compose.yaml".into()))
         );
         assert_eq!(
-            parse_compose_line("otro  exited(1)  /a/docker-compose.yml,/a/override.yml"),
-            Some(("otro".into(), "exited(1)".into(), "/a/docker-compose.yml".into()))
+            parse_compose_line("other  exited(1)  /a/docker-compose.yml,/a/override.yml"),
+            Some(("other".into(), "exited(1)".into(), "/a/docker-compose.yml".into()))
         );
     }
 }

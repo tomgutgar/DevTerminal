@@ -11,7 +11,7 @@ use crate::ui::ListView;
 
 pub struct Pacman {
     list: ListView,
-    helper: &'static str, // paru > yay > pacman (los helpers cubren AUR)
+    helper: &'static str, // paru > yay > pacman (the helpers cover the AUR)
 }
 
 impl Pacman {
@@ -19,7 +19,7 @@ impl Pacman {
         Self { list: ListView::new(), helper: "" }
     }
 
-    /// Comando de gestión: helper AUR directo, o pacman con sudo.
+    /// Management command: AUR helper directly, or pacman with sudo.
     fn manage(&self, args: &[&str]) -> Vec<String> {
         let mut v = if self.helper == "pacman" {
             vec!["sudo".to_string(), "pacman".to_string()]
@@ -44,10 +44,10 @@ impl Module for Pacman {
                 .unwrap_or("");
         }
         if self.helper.is_empty() {
-            self.list.set_items(vec![("pacman no disponible (¿no es Arch?)".into(), String::new())]);
+            self.list.set_items(vec![("pacman not available (not Arch?)".into(), String::new())]);
             return;
         }
-        // checkupdates (pacman-contrib) no toca la BD; fallback a -Qu
+        // checkupdates (pacman-contrib) doesn't touch the DB; falls back to -Qu
         let out = run_cmd(&["checkupdates".into()])
             .or_else(|_| run_cmd(&["pacman".into(), "-Qu".into()]));
         let rows: Vec<_> = match out {
@@ -59,11 +59,11 @@ impl Module for Pacman {
                     (l.to_string(), pkg)
                 })
                 .collect(),
-            // pacman -Qu devuelve 1 sin salida cuando no hay actualizaciones
+            // pacman -Qu exits 1 with no output when there are no updates
             Err(_) => Vec::new(),
         };
         if rows.is_empty() {
-            self.list.set_items(vec![("Sistema al día ✓".into(), String::new())]);
+            self.list.set_items(vec![("System up to date ✓".into(), String::new())]);
         } else {
             self.list.set_items(rows);
         }
@@ -73,7 +73,7 @@ impl Module for Pacman {
         self.list.draw(
             f,
             area,
-            &format!("Pacman · actualizaciones pendientes (gestor: {})", self.helper),
+            &format!("Pacman · pending updates (manager: {})", self.helper),
             self.accent(),
         );
     }
@@ -88,7 +88,7 @@ impl Module for Pacman {
         match key.code {
             KeyCode::Char('U') => Action::Interactive(self.manage(&["-Syu"])),
             KeyCode::Char('b') => Action::Prompt {
-                label: "Buscar paquete".into(),
+                label: "Search package".into(),
                 template: vec![
                     if self.helper == "pacman" { "pacman".into() } else { self.helper.into() },
                     "-Ss".into(),
@@ -98,14 +98,14 @@ impl Module for Pacman {
                 show: true,
             },
             KeyCode::Char('i') => Action::Prompt {
-                label: "Paquete a instalar".into(),
+                label: "Package to install".into(),
                 template: self.manage(&["-S", "{}"]),
                 interactive: true,
                 show: false,
             },
             KeyCode::Char('x') => Action::Prompt {
-                label: "Paquete a eliminar".into(),
-                // pacman ya pide confirmación por sí mismo
+                label: "Package to remove".into(),
+                // pacman asks for confirmation itself
                 template: self.manage(&["-Rns", "{}"]),
                 interactive: true,
                 show: false,
@@ -116,7 +116,7 @@ impl Module for Pacman {
     }
 
     fn footer(&self) -> String {
-        "U actualizar todo · b buscar · i instalar · x eliminar · l limpiar caché".into()
+        "U update all · b search · i install · x remove · l clean cache".into()
     }
 
     fn accent(&self) -> Color {

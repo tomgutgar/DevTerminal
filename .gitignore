@@ -11,6 +11,6 @@ config.toml
 .vscode/
 *.swp
 
-# Documentación interna: no se publica
+# Internal documentation: not published
 docs/
 CLAUDE.md

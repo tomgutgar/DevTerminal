@@ -11,7 +11,7 @@ use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
 
-const VIEWS: [&str; 3] = ["Status", "Log", "Ramas"];
+const VIEWS: [&str; 3] = ["Status", "Log", "Branches"];
 
 pub struct GitMod {
     repo: Option<PathBuf>,
@@ -21,7 +21,7 @@ pub struct GitMod {
     branch: String,
 }
 
-/// Detecta el repo del directorio actual subiendo hacia la raíz. Nunca escanea el disco.
+/// Detects the repo of the current directory by walking up to the root. Never scans the disk.
 fn detect_repo() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
     loop {
@@ -34,7 +34,7 @@ fn detect_repo() -> Option<PathBuf> {
     }
 }
 
-/// Color según el estado de una línea de `git status --porcelain`.
+/// Color by state of a `git status --porcelain` line.
 fn status_color(line: &str) -> Color {
     let mut chars = line.chars();
     let x = chars.next().unwrap_or(' ');
@@ -42,15 +42,15 @@ fn status_color(line: &str) -> Color {
     if x == '?' && y == '?' {
         Color::DarkGray
     } else if x == 'D' || y == 'D' {
-        theme::p().red // eliminado
+        theme::p().red // deleted
     } else if x != ' ' {
         theme::p().green // staged
     } else {
-        theme::p().yellow // modificado sin stage
+        theme::p().yellow // modified, unstaged
     }
 }
 
-/// Línea de `git status --porcelain` → (staged, ruta).
+/// `git status --porcelain` line → (staged, path).
 pub fn parse_porcelain(line: &str) -> Option<(bool, String)> {
     if line.len() < 4 {
         return None;
@@ -58,7 +58,7 @@ pub fn parse_porcelain(line: &str) -> Option<(bool, String)> {
     let x = line.chars().next()?;
     let mut path = line[3..].to_string();
     if let Some((_, new)) = path.split_once(" -> ") {
-        path = new.to_string(); // renombrados
+        path = new.to_string(); // renames
     }
     Some((x != ' ' && x != '?', path))
 }
@@ -81,7 +81,7 @@ impl GitMod {
         v
     }
 
-    /// Sin repo: ofrece los repos de los workspaces configurados (solo un nivel).
+    /// No repo: offers the repos in the configured workspaces (one level only).
     fn load_picker(&mut self) {
         let mut rows = Vec::new();
         for ws in &self.workspaces {
@@ -100,7 +100,7 @@ impl GitMod {
         }
         if rows.is_empty() {
             rows.push((
-                "No hay un repositorio Git en este directorio (ni workspaces con repos en config.toml)".into(),
+                "No Git repository in this directory (and no workspaces with repos in config.toml)".into(),
                 String::new(),
             ));
         }
@@ -135,7 +135,7 @@ impl Module for GitMod {
                         }))
                         .collect();
                     if rows.is_empty() {
-                        vec![("Árbol de trabajo limpio ✓".to_string(), String::new(), None)]
+                        vec![("Working tree clean ✓".to_string(), String::new(), None)]
                     } else {
                         rows
                     }
@@ -159,8 +159,8 @@ impl Module for GitMod {
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
         let title = match &self.repo {
-            Some(p) => format!("Git · {} · rama {} · [{}]", p.display(), self.branch, VIEWS[self.view]),
-            None => "Git · elegir repositorio".to_string(),
+            Some(p) => format!("Git · {} · branch {} · [{}]", p.display(), self.branch, VIEWS[self.view]),
+            None => "Git · choose a repository".to_string(),
         };
         self.list.draw(f, area, &title, self.accent());
     }
@@ -169,7 +169,7 @@ impl Module for GitMod {
         if self.list.key(key) {
             return Action::Handled;
         }
-        // Modo selector de repo
+        // Repo picker mode
         if self.repo.is_none() {
             if key.code == KeyCode::Enter {
                 if let Some(id) = self.list.selected_id() {
@@ -196,13 +196,13 @@ impl Module for GitMod {
             KeyCode::Char('p') => Action::Run { cmd: self.git(&["pull"]), confirm: None, show: true },
             KeyCode::Char('P') => Action::Run { cmd: self.git(&["push"]), confirm: None, show: true },
             KeyCode::Char('c') => Action::Prompt {
-                label: "Mensaje del commit".into(),
+                label: "Commit message".into(),
                 template: self.git(&["commit", "-m", "{}"]),
                 interactive: false,
                 show: true,
             },
             KeyCode::Char(' ') if self.view == 0 => {
-                // stage/unstage del archivo seleccionado según su estado real
+                // stage/unstage the selected file based on its actual state
                 let Some(path) = self.list.selected_id().filter(|s| !s.is_empty()) else {
                     return Action::Handled;
                 };
@@ -230,7 +230,7 @@ impl Module for GitMod {
                     let Some(path) = self.list.selected_id().filter(|s| !s.is_empty()) else {
                         return Action::Handled;
                     };
-                    // Con delta instalado, diff a pantalla completa con color y pager.
+                    // With delta installed, full-screen diff with color and a pager.
                     if has_bin("delta") {
                         let repo = self.repo.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
                         return Action::Interactive(vec![
@@ -261,9 +261,9 @@ impl Module for GitMod {
 
     fn footer(&self) -> String {
         if self.repo.is_none() {
-            "Enter abrir repo".into()
+            "Enter open repo".into()
         } else {
-            "v vista · Space stage · Enter diff/checkout · E editar · c commit · p pull · P push · e fetch · o otro repo".into()
+            "v view · Space stage · Enter diff/checkout · E edit · c commit · p pull · P push · e fetch · o other repo".into()
         }
     }
 
@@ -284,8 +284,8 @@ mod tests {
     fn porcelain() {
         assert_eq!(parse_porcelain(" M src/main.rs"), Some((false, "src/main.rs".into())));
         assert_eq!(parse_porcelain("M  src/main.rs"), Some((true, "src/main.rs".into())));
-        assert_eq!(parse_porcelain("?? nuevo.txt"), Some((false, "nuevo.txt".into())));
-        assert_eq!(parse_porcelain("R  viejo.txt -> nuevo.txt"), Some((true, "nuevo.txt".into())));
+        assert_eq!(parse_porcelain("?? new.txt"), Some((false, "new.txt".into())));
+        assert_eq!(parse_porcelain("R  old.txt -> new.txt"), Some((true, "new.txt".into())));
         assert_eq!(parse_porcelain(""), None);
     }
 }

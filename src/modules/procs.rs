@@ -22,7 +22,7 @@ impl Procs {
 
 impl Module for Procs {
     fn title(&self) -> &'static str {
-        "Procesos"
+        "Processes"
     }
 
     fn refresh(&mut self) {
@@ -49,7 +49,7 @@ impl Module for Procs {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        self.list.draw(f, area, "Procesos · por CPU (/ filtra)", self.accent());
+        self.list.draw(f, area, "Processes · by CPU (/ filters)", self.accent());
     }
 
     fn on_key(&mut self, key: KeyEvent) -> Action {
@@ -62,16 +62,16 @@ impl Module for Procs {
         match key.code {
             KeyCode::Char('k') => Action::Run {
                 cmd: vec!["kill".into(), pid.clone()],
-                confirm: Some(format!("¿Matar proceso {pid}?")),
+                confirm: Some(format!("Kill process {pid}?")),
                 show: false,
             },
             KeyCode::Char('K') => Action::Run {
                 cmd: vec!["kill".into(), "-9".into(), pid.clone()],
-                confirm: Some(format!("¿Matar proceso {pid} con SIGKILL?")),
+                confirm: Some(format!("Kill process {pid} with SIGKILL?")),
                 show: false,
             },
             KeyCode::Char('n') => Action::Prompt {
-                label: format!("Prioridad (nice) para {pid}"),
+                label: format!("Priority (nice) for {pid}"),
                 template: vec!["renice".into(), "{}".into(), "-p".into(), pid],
                 interactive: false,
                 show: true,
@@ -81,7 +81,7 @@ impl Module for Procs {
     }
 
     fn footer(&self) -> String {
-        "k matar · K SIGKILL · n renice".into()
+        "k kill · K SIGKILL · n renice".into()
     }
 
     fn accent(&self) -> Color {

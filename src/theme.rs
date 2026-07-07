@@ -2,9 +2,9 @@ use std::sync::OnceLock;
 
 use ratatui::style::Color;
 
-/// Paleta de colores de la aplicación. Cada módulo toma su acento de aquí
-/// y los estados (running/error/aviso) usan los semánticos, así cambiar
-/// `theme` en config.toml re-colorea toda la TUI.
+/// Application color palette. Every module takes its accent from here
+/// and states (running/error/warning) use the semantic colors, so changing
+/// `theme` in config.toml re-colors the whole TUI.
 pub struct Palette {
     pub red: Color,
     pub orange: Color,
@@ -15,7 +15,7 @@ pub struct Palette {
     pub blue: Color,
     pub blue2: Color,
     pub magenta: Color,
-    pub sel_bg: Color, // fondo de la fila seleccionada
+    pub sel_bg: Color, // selected row background
 }
 
 const fn rgb(hex: u32) -> Color {
@@ -63,17 +63,17 @@ const GRUVBOX: Palette = Palette {
 
 static PALETTE: OnceLock<&'static Palette> = OnceLock::new();
 
-/// Fija la paleta desde config.toml. Llamar una vez al arrancar.
+/// Sets the palette from config.toml. Call once at startup.
 pub fn init(name: &str) {
     let p = match name {
         "catppuccin" => &CATPPUCCIN,
         "gruvbox" => &GRUVBOX,
-        _ => &NORD, // "nord", "dark" (valor histórico) y desconocidos
+        _ => &NORD, // "nord", "dark" (legacy value) and unknown values
     };
     let _ = PALETTE.set(p);
 }
 
-/// Paleta activa (nord si `init` no se llamó, p. ej. en tests).
+/// Active palette (nord if `init` was never called, e.g. in tests).
 pub fn p() -> &'static Palette {
     PALETTE.get_or_init(|| &NORD)
 }
