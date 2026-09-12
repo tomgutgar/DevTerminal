@@ -5,6 +5,7 @@ use ratatui::Frame;
 use sysinfo::{ProcessesToUpdate, System};
 
 use super::{Action, Module};
+use crate::platform;
 use crate::theme;
 use crate::ui::ListView;
 
@@ -61,27 +62,25 @@ impl Module for Procs {
         };
         match key.code {
             KeyCode::Char('k') => Action::Run {
-                cmd: vec!["kill".into(), pid.clone()],
+                cmd: platform::kill(&pid, false),
                 confirm: Some(format!("Kill process {pid}?")),
                 show: false,
             },
             KeyCode::Char('K') => Action::Run {
-                cmd: vec!["kill".into(), "-9".into(), pid.clone()],
-                confirm: Some(format!("Kill process {pid} with SIGKILL?")),
+                cmd: platform::kill(&pid, true),
+                confirm: Some(format!("Force-kill process {pid}?")),
                 show: false,
             },
-            KeyCode::Char('n') => Action::Prompt {
-                label: format!("Priority (nice) for {pid}"),
-                template: vec!["renice".into(), "{}".into(), "-p".into(), pid],
-                interactive: false,
-                show: true,
-            },
+            KeyCode::Char('n') => {
+                let (label, template) = platform::renice(&pid);
+                Action::Prompt { label, template, interactive: false, show: true }
+            }
             _ => Action::Ignored,
         }
     }
 
     fn footer(&self) -> String {
-        "k kill · K SIGKILL · n renice".into()
+        if platform::WIN { "k kill · K force · n priority" } else { "k kill · K SIGKILL · n renice" }.into()
     }
 
     fn accent(&self) -> Color {

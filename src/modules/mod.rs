@@ -4,7 +4,7 @@ pub mod git;
 pub mod github;
 pub mod k8s;
 pub mod logs;
-pub mod pacman;
+pub mod packages;
 pub mod procs;
 pub mod servers;
 
@@ -70,7 +70,7 @@ pub fn all(cfg: &Config) -> Vec<Box<dyn Module>> {
         Box::new(k8s::K8s::new()),
         Box::new(servers::Servers::new(cfg.servers.clone())),
         Box::new(procs::Procs::new()),
-        Box::new(pacman::Pacman::new()),
+        Box::new(packages::Packages::new()),
         Box::new(logs::Logs::new()),
     ]
 }

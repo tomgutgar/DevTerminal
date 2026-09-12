@@ -2,7 +2,7 @@
 name = "devterminal"
 version = "1.0.0"
 edition = "2021"
-description = "Terminal Workspace Manager for Linux"
+description = "Terminal Workspace Manager for Linux and Windows"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/tomgutgar/DevTerminal"
 
@@ -18,3 +18,6 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 anyhow = "1"
 sysinfo = "0.32"
+# Just for the dashboard date: `date +%A` does not exist on Windows and std
+# knows nothing about time zones.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

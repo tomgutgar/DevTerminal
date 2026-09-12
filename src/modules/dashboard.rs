@@ -9,6 +9,7 @@ use ratatui::Frame;
 use sysinfo::{Disks, System};
 
 use super::{Action, Module};
+use crate::platform;
 use crate::runner;
 use crate::theme;
 use crate::ui::block_c;
@@ -74,9 +75,13 @@ impl Module for Dashboard {
             })
             .collect();
 
+        // load_average doesn't exist on Windows (sysinfo returns zeros).
         let load = System::load_average();
-        let date = runner::run_cmd(&["date".into(), "+%A %d/%m/%Y  %H:%M".into()])
-            .unwrap_or_default();
+        let load_txt = if platform::WIN {
+            "n/a on Windows".to_string()
+        } else {
+            format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen)
+        };
         // ponytail: docker is queried on refresh, not live; async refresh when it hurts
         let docker = if runner::has_bin("docker") {
             runner::run_cmd(&["docker".into(), "ps".into(), "-q".into()])
@@ -100,9 +105,9 @@ impl Module for Dashboard {
                 "Uptime",
                 format!("{} h {} min", System::uptime() / 3600, System::uptime() % 3600 / 60),
             ),
-            ("Load", format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen)),
+            ("Load", load_txt),
             ("Docker", docker),
-            ("Date", date.trim().to_string()),
+            ("Date", platform::now()),
         ];
     }
 
