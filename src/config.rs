@@ -34,11 +34,24 @@ impl Default for Config {
     }
 }
 
+/// `%APPDATA%\devterminal\config.toml` on Windows,
+/// `~/.config/devterminal/config.toml` on Linux.
 fn config_path() -> Option<PathBuf> {
-    let base = env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let base = if crate::platform::WIN {
+        env::var_os("APPDATA").map(PathBuf::from)
+    } else {
+        env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| home().map(|h| h.join(".config")))
+    }?;
     Some(base.join("devterminal").join("config.toml"))
+}
+
+/// The user's home directory: $HOME on Linux, %USERPROFILE% on Windows.
+pub fn home() -> Option<PathBuf> {
+    env::var_os("HOME")
+        .or_else(|| env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 pub fn load() -> Result<Config> {
@@ -48,11 +61,11 @@ pub fn load() -> Result<Config> {
     }
 }
 
-/// Expands the `~` prefix to $HOME.
+/// Expands the `~` prefix to the user's home directory.
 pub fn expand_home(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~") {
-        if let Some(home) = env::var_os("HOME") {
-            return PathBuf::from(home).join(rest.trim_start_matches('/'));
+        if let Some(home) = home() {
+            return home.join(rest.trim_start_matches(['/', '\\']));
         }
     }
     PathBuf::from(path)

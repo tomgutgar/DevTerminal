@@ -1,5 +1,6 @@
 mod config;
 mod modules;
+mod platform;
 mod runner;
 mod theme;
 mod ui;
@@ -233,7 +234,9 @@ impl App {
             return;
         }
         ratatui::restore();
-        let status = std::process::Command::new(&cmd[0]).args(&cmd[1..]).status();
+        let status = std::process::Command::new(runner::program(&cmd[0]))
+            .args(&cmd[1..])
+            .status();
         *terminal = ratatui::init();
         let _ = terminal.clear();
         if let Err(e) = status {

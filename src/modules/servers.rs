@@ -3,9 +3,11 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::Frame;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 
 use super::{Action, Module};
 use crate::config::{expand_home, Server};
+use crate::platform;
 use crate::runner::run_cmd;
 use crate::theme;
 use crate::ui::ListView;
@@ -54,6 +56,8 @@ pub struct Servers {
     servers: Vec<Server>,
     /// Show all listening ports, not just development ones.
     show_all: bool,
+    /// Windows only: netstat gives the pid but not the process name.
+    sys: System,
 }
 
 /// Hosts from ~/.ssh/config (ignores wildcard patterns).
@@ -93,24 +97,68 @@ fn parse_ss_line(line: &str) -> Option<(String, String, String, String, bool)> {
     Some((host.to_string(), port.to_string(), name, pid, exposed))
 }
 
+/// One listening line of `netstat -ano` -> (host, port, pid, exposed).
+/// The state column (`LISTENING`) is not used as a filter: it is translated on
+/// non-English Windows. What marks a listening socket, in any language, is that
+/// its remote address is port 0.
+fn parse_netstat_line(line: &str) -> Option<(String, String, String, bool)> {
+    let cols: Vec<&str> = line.split_whitespace().collect();
+    if cols.len() < 5 || !cols[0].eq_ignore_ascii_case("tcp") || !cols[2].ends_with(":0") {
+        return None;
+    }
+    let pid = cols[4];
+    if pid.is_empty() || !pid.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let (addr, port) = cols[1].rsplit_once(':')?;
+    let exposed = matches!(addr, "0.0.0.0" | "*" | "[::]");
+    let host = if exposed || addr == "127.0.0.1" || addr == "[::1]" { "localhost" } else { addr };
+    Some((host.to_string(), port.to_string(), pid.to_string(), exposed))
+}
+
 impl Servers {
     pub fn new(servers: Vec<Server>) -> Self {
-        Self { view: 0, list: ListView::new(), servers, show_all: false }
+        Self { view: 0, list: ListView::new(), servers, show_all: false, sys: System::new() }
     }
 
     /// Each port is drawn as a real URL (the terminal opens it with Ctrl+click)
     /// with each field in its own color. id = "pid\turl" for kill/open/copy.
-    fn refresh_ports(&mut self) {
-        let p = theme::p();
-        let out = run_cmd(&["ss".into(), "-tlnp".into()]);
-        let rows: Vec<(Line<'static>, String)> = match out {
-            Ok(o) => o
+    /// Listening TCP ports: `ss -tlnp` on Linux, `netstat -ano` on Windows
+    /// (which gives the pid but not the name, so it is joined with sysinfo).
+    fn listening(&mut self) -> anyhow::Result<Vec<(String, String, String, String, bool)>> {
+        if !platform::WIN {
+            return Ok(run_cmd(&["ss".into(), "-tlnp".into()])?
                 .lines()
                 .filter_map(parse_ss_line)
+                .collect());
+        }
+        let out = run_cmd(&["netstat".into(), "-ano".into()])?;
+        self.sys.refresh_processes(ProcessesToUpdate::All, true);
+        Ok(out
+            .lines()
+            .filter_map(parse_netstat_line)
+            .map(|(host, port, pid, exposed)| {
+                let name = pid
+                    .parse::<u32>()
+                    .ok()
+                    .and_then(|n| self.sys.process(Pid::from_u32(n)))
+                    .map(|pr| pr.name().to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "?".into());
+                (host, port, name, pid, exposed)
+            })
+            .collect())
+    }
+
+    fn refresh_ports(&mut self) {
+        let p = theme::p();
+        let show_all = self.show_all;
+        let out = self.listening();
+        let rows: Vec<(Line<'static>, String)> = match out {
+            Ok(o) => o
+                .into_iter()
                 .filter(|(_, port, _, pid, _)| {
                     !pid.is_empty()
-                        && (self.show_all
-                            || port.parse::<u16>().map(is_dev_port).unwrap_or(false))
+                        && (show_all || port.parse::<u16>().map(is_dev_port).unwrap_or(false))
                 })
                 .map(|(host, port, name, pid, exposed)| {
                     let url = format!("http://{host}:{port}");
@@ -184,8 +232,12 @@ impl Servers {
         self.list.set_items_rich(rows);
     }
 
-    /// Interfaces (`ip -br addr`), default route and DNS from /etc/resolv.conf.
+    /// Interfaces, default route and DNS. `ip` + resolv.conf on Linux, the
+    /// PowerShell Net* cmdlets on Windows.
     fn refresh_network(&mut self) {
+        if platform::WIN {
+            return self.refresh_network_win();
+        }
         let mut rows: Vec<(String, String, Option<Color>)> = Vec::new();
         match run_cmd(&["ip".into(), "-br".into(), "addr".into()]) {
             Ok(o) => {
@@ -209,6 +261,47 @@ impl Servers {
         let resolv = std::fs::read_to_string("/etc/resolv.conf").unwrap_or_default();
         for ns in resolv.lines().filter_map(|l| l.trim().strip_prefix("nameserver ")) {
             rows.push((format!("✦ DNS {}", ns.trim()), ns.trim().to_string(), None));
+        }
+        self.list.set_items_styled(rows);
+    }
+
+    /// A single PowerShell call (starting it costs ~300 ms) emitting tagged
+    /// lines; the symbols are added here and not in the script so the console
+    /// code page can't mangle them.
+    fn refresh_network_win(&mut self) {
+        let script = "Get-NetAdapter | ForEach-Object { 'IF|{0}|{1}|{2}' -f $_.Name, $_.Status, \
+             ((Get-NetIPAddress -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).IPAddress -join ' ') }; \
+             Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | ForEach-Object { 'GW|{0}|{1}' -f $_.NextHop, $_.InterfaceAlias }; \
+             Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { $_.ServerAddresses } | Sort-Object -Unique | ForEach-Object { 'DNS|{0}' -f $_ }";
+        let out = match run_cmd(&platform::ps(script)) {
+            Ok(o) => o,
+            Err(e) => {
+                self.list.set_items(vec![(format!("Error: {e}"), String::new())]);
+                return;
+            }
+        };
+        let mut rows: Vec<(String, String, Option<Color>)> = Vec::new();
+        for l in out.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            let c: Vec<&str> = l.split('|').collect();
+            match c.as_slice() {
+                ["IF", name, status, ips] => {
+                    let color = if status.eq_ignore_ascii_case("up") {
+                        Some(theme::p().green)
+                    } else {
+                        Some(Color::DarkGray)
+                    };
+                    rows.push((
+                        format!("{name:<24} {status:<14} {ips}"),
+                        name.to_string(),
+                        color,
+                    ));
+                }
+                ["GW", gw, iface] => {
+                    rows.push((format!("\u{21e1} default via {gw} dev {iface}"), String::new(), None))
+                }
+                ["DNS", ns] => rows.push((format!("\u{2726} DNS {ns}"), ns.to_string(), None)),
+                _ => {}
+            }
         }
         self.list.set_items_styled(rows);
     }
@@ -253,7 +346,12 @@ impl Module for Servers {
                 KeyCode::Char('p') => {
                     return Action::Prompt {
                         label: "Host to ping".into(),
-                        template: vec!["ping".into(), "{}".into()],
+                        // Windows ping sends 4 packets and stops; -t keeps it going like Linux.
+                        template: if platform::WIN {
+                            vec!["ping".into(), "-t".into(), "{}".into()]
+                        } else {
+                            vec!["ping".into(), "{}".into()]
+                        },
                         interactive: true,
                         show: false,
                     }
@@ -261,7 +359,10 @@ impl Module for Servers {
                 KeyCode::Char('t') => {
                     return Action::Prompt {
                         label: "Host to traceroute".into(),
-                        template: vec!["traceroute".into(), "{}".into()],
+                        template: vec![
+                            if platform::WIN { "tracert".to_string() } else { "traceroute".to_string() },
+                            "{}".into(),
+                        ],
                         interactive: true,
                         show: false,
                     }
@@ -276,14 +377,14 @@ impl Module for Servers {
             (0, KeyCode::Char('k')) => {
                 let pid = id.split('\t').next().unwrap_or(&id).to_string();
                 Action::Run {
-                    cmd: vec!["kill".into(), pid.clone()],
+                    cmd: platform::kill(&pid, false),
                     confirm: Some(format!("Kill the process with pid {pid}?")),
                     show: false,
                 }
             }
             (0, KeyCode::Char('o')) | (0, KeyCode::Enter) => match id.split('\t').nth(1) {
                 Some(url) => Action::Run {
-                    cmd: vec!["xdg-open".into(), url.to_string()],
+                    cmd: platform::open_url(url),
                     confirm: None,
                     show: false,
                 },
@@ -294,6 +395,19 @@ impl Module for Servers {
             (1, KeyCode::Char('c')) => {
                 let mut cmd: Vec<String> = id.split('\t').map(String::from).collect();
                 cmd[0] = "ssh-copy-id".into();
+                // The OpenSSH shipped with Windows has no ssh-copy-id: show the equivalent.
+                if !crate::runner::has_bin("ssh-copy-id") {
+                    let target = cmd.last().cloned().unwrap_or_default();
+                    return Action::Show {
+                        title: "ssh-copy-id not available".into(),
+                        text: format!(
+                            "The OpenSSH shipped with Windows has no ssh-copy-id.\n\n\
+                             PowerShell equivalent, with the public key already generated (key g):\n\n\
+                             type $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh {target} \
+                             \"mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys\"\n"
+                        ),
+                    };
+                }
                 Action::Interactive(cmd)
             }
             _ => Action::Ignored,
@@ -354,6 +468,26 @@ mod tests {
         assert_eq!(name, "node");
         assert_eq!(pid, "12345");
         assert!(!exposed);
+    }
+
+    #[test]
+    fn parses_netstat_line() {
+        // State column in Spanish: the parser doesn't look at it.
+        let l = "  TCP    127.0.0.1:5173         0.0.0.0:0              ESCUCHANDO      4242";
+        let (host, port, pid, exposed) = parse_netstat_line(l).unwrap();
+        assert_eq!(
+            (host.as_str(), port.as_str(), pid.as_str(), exposed),
+            ("localhost", "5173", "4242", false)
+        );
+
+        let l = "  TCP    [::]:8080              [::]:0                 LISTENING       99";
+        let (_, port, _, exposed) = parse_netstat_line(l).unwrap();
+        assert_eq!(port, "8080");
+        assert!(exposed);
+
+        // Established connection (remote != :0) and UDP: out.
+        assert!(parse_netstat_line("  TCP  10.0.0.2:52000  140.82.121.4:443  ESTABLISHED  7").is_none());
+        assert!(parse_netstat_line("  UDP  0.0.0.0:5353    *:*                            8").is_none());
     }
 
     #[test]

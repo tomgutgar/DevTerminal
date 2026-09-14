@@ -1,8 +1,8 @@
 # DevTerminal
 
-**Terminal Workspace Manager for Linux.** A TUI that centralizes the administration of your development environment in a single, fully keyboard-driven interface.
+**Terminal Workspace Manager for Linux and Windows.** A TUI that centralizes the administration of your development environment in a single, fully keyboard-driven interface.
 
-DevTerminal reimplements nothing: it acts as a unified control panel over the tools you already use — `git`, `gh`, `docker`, `kubectl`, `pacman`, `journalctl`, `ssh` — so you can stop juggling terminals and remembering flags.
+DevTerminal reimplements nothing: it acts as a unified control panel over the tools you already use — `git`, `gh`, `docker`, `kubectl`, your system package manager, the system log, `ssh` — so you can stop juggling terminals and remembering flags.
 
 ## Screenshots
 
@@ -18,9 +18,24 @@ DevTerminal reimplements nothing: it acts as a unified control panel over the to
 | 4 | **Docker** | Containers, images, volumes, networks and Compose projects: start/stop/restart, logs, shell, inspect, delete, prune, `compose up/down` |
 | 5 | **K8s** | Pods, deployments, services, nodes and namespaces (`-A`): logs, exec, rollout restart, scale replicas, delete |
 | 6 | **Servers** | Listening development ports (filtered by a whitelist of ~600 typical ports: vite, flask, postgres, n8n, ollama…) shown as clickable URLs, with a warning when exposed to the network; SSH hosts from `~/.ssh/config` and your own config (connect, `ssh-copy-id`, `ssh-keygen`); and networking: interfaces, gateway, DNS, ping and traceroute |
-| 7 | **Processes** | Sorted by CPU with live filter; kill, SIGKILL, renice |
-| 8 | **Pacman** | Pending updates (`checkupdates`), search, install, remove and clean cache; automatically uses `paru` or `yay` if present (AUR) |
-| 9 | **System** | `journalctl` with scrolling and errors-only filter + systemd services: per-unit logs, start/stop/restart |
+| 7 | **Processes** | Sorted by CPU with live filter; kill, force-kill, change priority |
+| 8 | **Packages** | Pending updates, search, install, remove and clean cache through whichever manager the system has: `paru`/`yay`/`pacman`, `apt`, `dnf`, `zypper`, `apk`, `winget`, `scoop` or `choco` |
+| 9 | **System** | The system log with scrolling and errors-only filter (`journalctl`, or the System+Application event logs) + services: per-unit log, start/stop/restart |
+
+## Platforms
+
+One binary per system; the code picks the native tool at run time. Every OS difference lives in `src/platform.rs` or in an `if platform::WIN` branch inside the module — decided with `cfg!()` and **not** `#[cfg]`, so both branches always compile and pass the tests on any machine.
+
+| | Linux | Windows |
+|---|---|---|
+| Packages | `paru`/`yay`/`pacman`, `apt`, `dnf`, `zypper`, `apk` | `winget`, `scoop`, `choco` |
+| Log and services | `journalctl` + `systemctl` | System/Application event logs + Windows services |
+| Ports | `ss -tlnp` | `netstat -ano` (+ process name via sysinfo) |
+| Network | `ip`, `/etc/resolv.conf` | PowerShell `Get-Net*` cmdlets |
+| Privileges | `sudo` | UAC (`Start-Process -Verb RunAs`) |
+| Clipboard | `wl-copy` / `xclip` / `xsel` | `clip` |
+| Open URL · notifications | `xdg-open` · `notify-send` | `start` · tray balloon |
+| Config | `~/.config/devterminal/config.toml` | `%APPDATA%\devterminal\config.toml` |
 
 ## Philosophy
 
@@ -33,8 +48,16 @@ DevTerminal reimplements nothing: it acts as a unified control panel over the to
 
 ### Requirements
 
-- **Linux** (developed and tested on Arch/CachyOS; the Pacman module is Arch-specific, everything else works on any distro)
-- **Stable Rust** — `pacman -S rustup && rustup default stable`
+- **Linux** (any distribution; the System module expects systemd) or **Windows 10/11**
+- **Stable Rust**
+  - Linux: `rustup default stable`
+  - Windows: `winget install Rustlang.Rustup`. The MSVC toolchain needs the Visual Studio Build Tools; if you'd rather skip them, use the MinGW one:
+    ```powershell
+    rustup default stable-x86_64-pc-windows-gnu
+    winget install BrechtSanders.WinLibs.POSIX.MSVCRT   # gcc/ld/dlltool for linking
+    ```
+
+Prebuilt binaries for Linux x86_64 and Windows x86_64 are attached to every `v*` release.
 
 ### Build and install
 
@@ -56,13 +79,16 @@ Each module detects whether its tool is missing and says so on screen; install o
 | `gh` | GitHub module |
 | `docker` (+ compose plugin) | Docker module |
 | `kubectl` | K8s module |
-| `paru` / `yay` | AUR packages in the Pacman module |
+| `paru` / `yay` | AUR packages in the Packages module (Linux/Arch) |
 | `pacman-contrib` | `checkupdates` (queries without touching the pacman DB) |
+| `winget` / `scoop` / `choco` | Packages module on Windows (winget ships with the system) |
 | `delta` | Full-screen colored Git diffs |
-| `wl-clipboard` / `xclip` / `xsel` | Copy with `y` (Wayland / X11) |
-| `libnotify` | Desktop notification when a command takes >10 s |
-| `xdg-utils` | Open port URLs in the browser |
-| `traceroute` | Traceroute in the Network view |
+| `wl-clipboard` / `xclip` / `xsel` | Copy with `y` on Linux (Wayland / X11) |
+| `libnotify` | Desktop notification on Linux when a command takes >10 s |
+| `xdg-utils` | Open port URLs in the browser on Linux |
+| `traceroute` | Traceroute in the Network view on Linux (`tracert` on Windows) |
+
+On Windows, clipboard, notifications, opening URLs and traceroute need nothing extra. Windows Terminal is recommended over the classic console host, which renders neither RGB colors nor rounded borders well.
 
 ## Usage
 
@@ -83,11 +109,11 @@ Each module detects whether its tool is missing and says so on screen; install o
 
 Every module shows **its own shortcuts in the bottom bar**. Some examples: in Git `Space` stages/unstages and `c` opens the commit prompt; in Docker `u`/`x`/`t` are start/stop/restart and `e` opens a shell inside the container; in Processes `k` kills the selected process.
 
-Interactive commands (ssh, shells, `pacman -Syu`, ping…) suspend the TUI, hand you the full terminal, and return you where you were when they exit.
+Interactive commands (ssh, shells, `pacman -Syu`, `winget upgrade`, ping…) suspend the TUI, hand you the full terminal, and return you where you were when they exit.
 
 ### Configuration (optional)
 
-File at `~/.config/devterminal/config.toml` (`$XDG_CONFIG_HOME` is honored). If it doesn't exist, defaults are used.
+File at `~/.config/devterminal/config.toml` on Linux (`$XDG_CONFIG_HOME` is honored) or `%APPDATA%\devterminal\config.toml` on Windows. If it doesn't exist, defaults are used. `~` expands to `$HOME` / `%USERPROFILE%`.
 
 ```toml
 # Color theme: re-colors the whole TUI
@@ -112,7 +138,8 @@ A single binary crate in Rust on top of [ratatui](https://ratatui.rs):
 
 ```
 src/main.rs           Event loop, App and overlays (confirm / prompt / pane)
-src/runner.rs         Command execution, binary detection, clipboard, notifications
+src/runner.rs         Command execution, binary detection (PATH + PATHEXT), clipboard, notifications
+src/platform.rs       Windows/Linux differences: open URL, kill, priority, elevate, editor, PowerShell, date
 src/theme.rs          Color palettes (nord / catppuccin / gruvbox)
 src/ui.rs             Shared ListView (selection + filter) and drawing helpers
 src/config.rs         TOML config
@@ -121,7 +148,7 @@ src/modules/          Module trait + one file per module (9 modules)
 
 Each module implements the `Module` trait (`refresh`, `draw`, `on_key`, `footer`) and returns actions (`Run`, `Interactive`, `Prompt`, `Show`) that the main loop executes — confirmation dialogs and output panes are a single shared implementation.
 
-Dependencies are minimal on purpose: `ratatui`, `sysinfo`, `serde` + `toml` and `anyhow`. The parsers (git porcelain, `ss`, `compose ls`, `~/.ssh/config`) are plain-text with tests, no serde_json.
+Dependencies are minimal on purpose: `ratatui`, `sysinfo`, `serde` + `toml`, `anyhow` and `chrono` (just for the local date, which `date +%A` can't provide on Windows). The parsers (git porcelain, `ss`, `netstat`, `compose ls`, `~/.ssh/config`, package-manager output) are plain-text with tests, no serde_json.
 
 ## Tests
 

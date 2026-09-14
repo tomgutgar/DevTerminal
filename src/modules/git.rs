@@ -7,6 +7,7 @@ use ratatui::Frame;
 
 use super::{Action, Module};
 use crate::config::expand_home;
+use crate::platform;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
@@ -221,9 +222,8 @@ impl Module for GitMod {
                 let Some(path) = self.list.selected_id().filter(|s| !s.is_empty()) else {
                     return Action::Handled;
                 };
-                let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nano".into());
                 let full = self.repo.as_ref().map(|r| r.join(&path)).unwrap_or_default();
-                Action::Interactive(vec![editor, full.display().to_string()])
+                Action::Interactive(vec![platform::editor(), full.display().to_string()])
             }
             KeyCode::Enter => match self.view {
                 0 => {
@@ -233,14 +233,7 @@ impl Module for GitMod {
                     // With delta installed, full-screen diff with color and a pager.
                     if has_bin("delta") {
                         let repo = self.repo.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-                        return Action::Interactive(vec![
-                            "sh".into(),
-                            "-c".into(),
-                            r#"git -C "$1" diff HEAD -- "$2" | delta --paging=always"#.into(),
-                            "sh".into(),
-                            repo,
-                            path,
-                        ]);
+                        return Action::Interactive(platform::diff_delta(&repo, &path));
                     }
                     let diff = run_cmd(&self.git(&["diff", "HEAD", "--", &path]))
                         .unwrap_or_else(|e| e.to_string());
