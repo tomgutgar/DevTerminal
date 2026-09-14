@@ -46,20 +46,9 @@ One binary per system; the code picks the native tool at run time. Every OS diff
 
 ## Installation
 
-### Requirements
+Full guide, per distribution and for Windows: **[INSTALL.md](INSTALL.md)** — prebuilt binaries, building from source, optional tools, platform notes and troubleshooting.
 
-- **Linux** (any distribution; the System module expects systemd) or **Windows 10/11**
-- **Stable Rust**
-  - Linux: `rustup default stable`
-  - Windows: `winget install Rustlang.Rustup`. The MSVC toolchain needs the Visual Studio Build Tools; if you'd rather skip them, use the MinGW one:
-    ```powershell
-    rustup default stable-x86_64-pc-windows-gnu
-    winget install BrechtSanders.WinLibs.POSIX.MSVCRT   # gcc/ld/dlltool for linking
-    ```
-
-Prebuilt binaries for Linux x86_64 and Windows x86_64 are attached to every `v*` release.
-
-### Build and install
+Quick start from source (needs Git and [rustup](https://rustup.rs)):
 
 ```bash
 git clone https://github.com/tomgutgar/DevTerminal.git
@@ -68,27 +57,10 @@ cargo install --path .   # puts the `devc` binary in ~/.cargo/bin
 devc
 ```
 
-Or without installing: `cargo run --release`.
+- **Debian/Ubuntu, Fedora, openSUSE, Alpine:** install a C linker first (`build-essential`, `gcc` or `build-base`) and use rustup rather than the distro's `rustc`.
+- **Windows:** Rust needs a linker — either the Visual Studio Build Tools (MSVC) or WinLibs MinGW (GNU toolchain). Both are one `winget` command; see [INSTALL.md](INSTALL.md#windows-1). Use Windows Terminal.
 
-### Optional tools
-
-Each module detects whether its tool is missing and says so on screen; install only what you use:
-
-| Tool | Used for |
-|---|---|
-| `gh` | GitHub module |
-| `docker` (+ compose plugin) | Docker module |
-| `kubectl` | K8s module |
-| `paru` / `yay` | AUR packages in the Packages module (Linux/Arch) |
-| `pacman-contrib` | `checkupdates` (queries without touching the pacman DB) |
-| `winget` / `scoop` / `choco` | Packages module on Windows (winget ships with the system) |
-| `delta` | Full-screen colored Git diffs |
-| `wl-clipboard` / `xclip` / `xsel` | Copy with `y` on Linux (Wayland / X11) |
-| `libnotify` | Desktop notification on Linux when a command takes >10 s |
-| `xdg-utils` | Open port URLs in the browser on Linux |
-| `traceroute` | Traceroute in the Network view on Linux (`tracert` on Windows) |
-
-On Windows, clipboard, notifications, opening URLs and traceroute need nothing extra. Windows Terminal is recommended over the classic console host, which renders neither RGB colors nor rounded borders well.
+Each module detects whether its tool (`gh`, `docker`, `kubectl`, `delta`…) is missing and says so on screen; install only what you use — per-platform commands in [INSTALL.md](INSTALL.md#optional-tools).
 
 ## Usage
 
