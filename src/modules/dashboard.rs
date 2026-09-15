@@ -46,22 +46,20 @@ fn gib(bytes: u64) -> f64 {
 
 #[derive(Debug, PartialEq)]
 struct Gpu {
-    name: String,
     util: f64,       // %
     mem: (u64, u64), // used, total (MiB)
     temp: u32,       // °C
 }
 
-/// First line of `nvidia-smi --query-gpu=name,utilization.gpu,memory.used,
+/// First line of `nvidia-smi --query-gpu=utilization.gpu,memory.used,
 /// memory.total,temperature.gpu --format=csv,noheader,nounits`.
 // ponytail: first GPU only, NVIDIA only; loop over lines / add rocm-smi when someone has them
 fn parse_gpu(out: &str) -> Option<Gpu> {
     let f: Vec<&str> = out.lines().next()?.split(',').map(str::trim).collect();
-    let [name, util, used, total, temp] = f[..] else {
+    let [util, used, total, temp] = f[..] else {
         return None;
     };
     Some(Gpu {
-        name: name.to_string(),
         util: util.parse().ok()?,
         mem: (used.parse().ok()?, total.parse::<u64>().ok()?.max(1)),
         temp: temp.parse().ok()?,
@@ -91,7 +89,7 @@ impl Module for Dashboard {
             .then(|| {
                 runner::run_cmd(&[
                     "nvidia-smi".into(),
-                    "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu"
+                    "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu"
                         .into(),
                     "--format=csv,noheader,nounits".into(),
                 ])
@@ -198,8 +196,7 @@ impl Module for Dashboard {
             f.render_widget(
                 gauge(
                     format!(
-                        "GPU {} · VRAM {:.1}/{:.1} GiB · {}°C",
-                        g.name,
+                        "GPU · VRAM {:.1}/{:.1} GiB · {}°C",
                         g.mem.0 as f64 / 1024.0,
                         g.mem.1 as f64 / 1024.0,
                         g.temp
@@ -280,15 +277,14 @@ mod tests {
     #[test]
     fn parses_nvidia_smi() {
         assert_eq!(
-            parse_gpu("NVIDIA GeForce GTX 1080, 9, 1057, 8192, 48\n"),
+            parse_gpu("9, 1057, 8192, 48\n"),
             Some(Gpu {
-                name: "NVIDIA GeForce GTX 1080".into(),
                 util: 9.0,
                 mem: (1057, 8192),
                 temp: 48,
             })
         );
-        assert_eq!(parse_gpu("GTX 1080, [N/A], 1057, 8192, 48"), None);
+        assert_eq!(parse_gpu("[N/A], 1057, 8192, 48"), None);
         assert_eq!(parse_gpu(""), None);
     }
 }
