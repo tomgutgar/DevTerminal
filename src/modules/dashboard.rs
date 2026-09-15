@@ -19,6 +19,7 @@ pub struct Dashboard {
     cpu: f32,
     mem: (u64, u64),  // used, total (bytes)
     swap: (u64, u64),
+    gpu: Option<Gpu>,
     disks: Vec<(String, f64, f64)>, // mount point, used GiB, total GiB
     info: Vec<(&'static str, String)>,
     primed: bool, // a previous CPU sample exists (the % is real without sleeping)
@@ -31,6 +32,7 @@ impl Dashboard {
             cpu: 0.0,
             mem: (0, 1),
             swap: (0, 1),
+            gpu: None,
             disks: Vec::new(),
             info: Vec::new(),
             primed: false,
@@ -40,6 +42,30 @@ impl Dashboard {
 
 fn gib(bytes: u64) -> f64 {
     bytes as f64 / 1024.0 / 1024.0 / 1024.0
+}
+
+#[derive(Debug, PartialEq)]
+struct Gpu {
+    name: String,
+    util: f64,       // %
+    mem: (u64, u64), // used, total (MiB)
+    temp: u32,       // °C
+}
+
+/// First line of `nvidia-smi --query-gpu=name,utilization.gpu,memory.used,
+/// memory.total,temperature.gpu --format=csv,noheader,nounits`.
+// ponytail: first GPU only, NVIDIA only; loop over lines / add rocm-smi when someone has them
+fn parse_gpu(out: &str) -> Option<Gpu> {
+    let f: Vec<&str> = out.lines().next()?.split(',').map(str::trim).collect();
+    let [name, util, used, total, temp] = f[..] else {
+        return None;
+    };
+    Some(Gpu {
+        name: name.to_string(),
+        util: util.parse().ok()?,
+        mem: (used.parse().ok()?, total.parse::<u64>().ok()?.max(1)),
+        temp: temp.parse().ok()?,
+    })
 }
 
 impl Module for Dashboard {
@@ -61,6 +87,18 @@ impl Module for Dashboard {
         self.cpu = self.sys.global_cpu_usage();
         self.mem = (self.sys.used_memory(), self.sys.total_memory().max(1));
         self.swap = (self.sys.used_swap(), self.sys.total_swap().max(1));
+        self.gpu = runner::has_bin("nvidia-smi")
+            .then(|| {
+                runner::run_cmd(&[
+                    "nvidia-smi".into(),
+                    "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu"
+                        .into(),
+                    "--format=csv,noheader,nounits".into(),
+                ])
+                .ok()
+            })
+            .flatten()
+            .and_then(|o| parse_gpu(&o));
 
         // btrfs mounts the same partition on several subvolumes (/, /home...):
         // deduplicate by device+size and show the first mount point.
@@ -117,10 +155,11 @@ impl Module for Dashboard {
             Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)])
                 .areas(area);
 
-        let [g_cpu, g_mem, g_swap, disks] = Layout::vertical([
+        let [g_cpu, g_mem, g_swap, g_gpu, disks] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(if self.gpu.is_some() { 3 } else { 0 }),
             Constraint::Min(0),
         ])
         .areas(left);
@@ -155,6 +194,22 @@ impl Module for Dashboard {
             ),
             g_swap,
         );
+        if let Some(g) = &self.gpu {
+            f.render_widget(
+                gauge(
+                    format!(
+                        "GPU {} · VRAM {:.1}/{:.1} GiB · {}°C",
+                        g.name,
+                        g.mem.0 as f64 / 1024.0,
+                        g.mem.1 as f64 / 1024.0,
+                        g.temp
+                    ),
+                    g.util / 100.0,
+                    p.magenta,
+                ),
+                g_gpu,
+            );
+        }
 
         // Title/value composition: mount point in the accent color, figures
         // in white, usage % colored by threshold.
@@ -215,5 +270,25 @@ impl Module for Dashboard {
 
     fn accent(&self) -> Color {
         theme::p().cyan
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_gpu, Gpu};
+
+    #[test]
+    fn parses_nvidia_smi() {
+        assert_eq!(
+            parse_gpu("NVIDIA GeForce GTX 1080, 9, 1057, 8192, 48\n"),
+            Some(Gpu {
+                name: "NVIDIA GeForce GTX 1080".into(),
+                util: 9.0,
+                mem: (1057, 8192),
+                temp: 48,
+            })
+        );
+        assert_eq!(parse_gpu("GTX 1080, [N/A], 1057, 8192, 48"), None);
+        assert_eq!(parse_gpu(""), None);
     }
 }

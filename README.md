@@ -12,7 +12,7 @@ DevTerminal reimplements nothing: it acts as a unified control panel over the to
 
 | # | Module | What it does |
 |---|--------|--------------|
-| 1 | **Dashboard** | CPU, RAM, swap and disks with gauges; uptime, load, kernel, running Docker containers and date |
+| 1 | **Dashboard** | CPU, RAM, swap, GPU (NVIDIA, via `nvidia-smi`) and disks with gauges; uptime, load, kernel, running Docker containers and date |
 | 2 | **Git** | Contextual: detects the repo of the current directory or offers the ones in your workspaces. Status with stage/unstage, diff (full-screen via [`delta`](https://github.com/dandavison/delta) if installed), edit with `$EDITOR`, commit, pull, push, fetch, graph log and branch checkout |
 | 3 | **GitHub** | Repos, issues, PRs and Actions via `gh`: details, open in browser, re-run workflows. Pin a context repo with `Space` to operate outside the cwd |
 | 4 | **Docker** | Containers, images, volumes, networks and Compose projects: start/stop/restart, logs, shell, inspect, delete, prune, `compose up/down` |
