@@ -122,6 +122,13 @@ With toolchain B, WinLibs' `mingw64\bin` folder must be on `PATH` while compilin
 $env:Path = (Resolve-Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.MSVCRT_*\mingw64\bin").Path + ";$env:Path"
 ```
 
+devc rebuilds itself when it updates (`Ctrl+U` or after a `git pull`), so it's better to add it to your user `PATH` for good:
+
+```powershell
+$mingw = (Resolve-Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.MSVCRT_*\mingw64\bin").Path
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User') + ";$mingw", 'User')
+```
+
 Open a new terminal after installing so `cargo` and `git` are on `PATH`.
 
 ### Compile and install (all platforms)
@@ -133,7 +140,7 @@ cargo install --path .    # puts devc in ~/.cargo/bin (%USERPROFILE%\.cargo\bin 
 devc
 ```
 
-Or run it without installing: `cargo run --release`. To update later: `git pull && cargo install --path .`.
+Or run it without installing: `cargo run --release`. To update later: `Ctrl+U` inside devc when it says there are new commits, or `git pull`: the `hooks/post-merge` hook, enabled by devc on its first launch, reinstalls it for you. Both need `git` and `cargo` on `PATH`. Prebuilt binaries don't self-update: download the new release.
 
 ---
 
@@ -236,6 +243,7 @@ Optional. If the file doesn't exist, defaults are used.
 | `version 'GLIBC_2.xx' not found` | Your glibc is older than the prebuilt binary's. [Build from source](#build-from-source). |
 | Windows build: `linker 'link.exe' not found` | MSVC toolchain without Build Tools. Install them (option A) or switch to the GNU toolchain (option B). |
 | Windows build: `error calling dlltool 'dlltool.exe': program not found` or `dlltool ... CreateProcess` | GNU toolchain without WinLibs on `PATH`. Add its `mingw64\bin` folder (see option B). |
+| `Ctrl+U` / `git pull` update fails with `cargo install failed` | Same build requirements as the first install: `cargo` and (GNU toolchain) WinLibs on your user `PATH`. On failure the previous `devc` is kept. |
 | Broken borders, wrong colors | Use Windows Terminal (Windows) or any truecolor terminal (Linux). |
 | `VCRUNTIME140.dll was not found` | `winget install Microsoft.VCRedist.2015+.x64` |
 | A module says its tool is missing | Install it from [Optional tools](#optional-tools) and press `R`. |
