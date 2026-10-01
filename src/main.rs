@@ -98,7 +98,7 @@ fn check_updates() -> Receiver<usize> {
 fn self_update() -> Result<()> {
     // DEVC_UPDATING: the post-merge hook (hooks/post-merge) would install twice.
     if !git(&["pull", "--ff-only"]).env("DEVC_UPDATING", "1").status()?.success() {
-        bail!("git pull failed in {REPO}");
+        bail!("{} {REPO}", i18n::text("git pull failed in", "git pull falló en"));
     }
     let exe = std::env::current_exe()?;
     // Windows won't overwrite a running .exe, but it will rename it.
@@ -112,7 +112,7 @@ fn self_update() -> Result<()> {
         if platform::WIN {
             std::fs::rename(&old, &exe)?;
         }
-        bail!("cargo install failed; devc was not updated");
+        bail!("{}", i18n::text("cargo install failed; devc was not updated", "cargo install falló; devc no se actualizó"));
     }
     Command::new(&exe).status()?;
     Ok(())
@@ -351,7 +351,11 @@ impl App {
             .collect();
         let mut brand = String::from(if self.pending_refresh { "DevTerminal ⟳" } else { "DevTerminal" });
         if self.behind > 0 {
-            brand += &format!(" · ⬆ {} new commits, Ctrl+U to update", self.behind);
+            brand += &format!(
+                " · ⬆ {} {}",
+                self.behind,
+                i18n::text("new commits, Ctrl+U to update", "commits nuevos, Ctrl+U para actualizar")
+            );
         }
         f.render_widget(
             Tabs::new(titles)
