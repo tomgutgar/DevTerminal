@@ -133,7 +133,7 @@ cargo install --path .    # puts devc in ~/.cargo/bin (%USERPROFILE%\.cargo\bin 
 devc
 ```
 
-Or run it without installing: `cargo run --release`. To update later: `git pull && cargo install --path .`.
+Or run it without installing: `cargo run --release`. To update later: `Ctrl+U` inside devc when it says there are new commits, or `git pull`: the `hooks/post-merge` hook, enabled by devc on its first launch, reinstalls it for you.
 
 ---
 

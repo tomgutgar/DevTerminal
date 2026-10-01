@@ -1,0 +1,9 @@
+#!/bin/sh
+# Reinstalls devc after every `git pull`. devc enables it on first launch; by hand:
+#   git config core.hooksPath hooks
+# devc's own Ctrl+U update sets DEVC_UPDATING and installs by itself.
+[ -n "$DEVC_UPDATING" ] && exit 0
+bin="${CARGO_HOME:-$HOME/.cargo}/bin/devc"
+# Windows won't overwrite a running .exe, but it will rename it.
+[ -f "$bin.exe" ] && rm -f "$bin.old" && mv "$bin.exe" "$bin.old"
+cargo install --locked --path . || { [ -f "$bin.old" ] && [ ! -f "$bin.exe" ] && mv "$bin.old" "$bin.exe"; exit 1; }

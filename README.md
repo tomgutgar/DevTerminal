@@ -57,6 +57,8 @@ cargo install --path .   # puts the `devc` binary in ~/.cargo/bin
 devc
 ```
 
+**Updates:** on launch devc fetches the repo it was built from; if there are new commits the title bar says so and `Ctrl+U` pulls, reinstalls and relaunches it. The first launch also enables `hooks/post-merge` (`core.hooksPath`, unless you already set one), so a plain `git pull` reinstalls devc too.
+
 - **Debian/Ubuntu, Fedora, openSUSE, Alpine:** install a C linker first (`build-essential`, `gcc` or `build-base`) and use rustup rather than the distro's `rustc`.
 - **Windows:** Rust needs a linker — either the Visual Studio Build Tools (MSVC) or WinLibs MinGW (GNU toolchain). Both are one `winget` command; see [INSTALL.md](INSTALL.md#windows-1). Use Windows Terminal.
 

@@ -5,13 +5,15 @@ mod runner;
 mod theme;
 mod ui;
 
+use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 /// Auto-refresh cadence for the active module (dashboard, ports, docker...).
 const AUTO_REFRESH: Duration = Duration::from_secs(3);
 
-use anyhow::Result;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use anyhow::{bail, Result};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -37,15 +39,81 @@ struct App {
     pending_refresh: bool,
     /// Ephemeral notice in the footer (e.g. "Copied"); cleared on the next key press.
     notice: Option<String>,
+    /// Commits the repo it was built from is behind its upstream (see `check_updates`).
+    updates: Receiver<usize>,
+    behind: usize,
+    /// Ctrl+U: quit, pull, reinstall and relaunch.
+    update: bool,
 }
 
 fn main() -> Result<()> {
     let cfg = config::load()?;
     theme::init(&cfg.theme);
     let mut terminal = ratatui::init();
-    let res = App::new(&cfg).run(&mut terminal);
+    let mut app = App::new(&cfg);
+    let res = app.run(&mut terminal);
     ratatui::restore();
-    res
+    res?;
+    if app.update {
+        self_update()?;
+    }
+    Ok(())
+}
+
+/// Source checkout this binary was built from (`cargo install --path .`).
+/// A prebuilt binary points at a path that doesn't exist, so git just fails.
+const REPO: &str = env!("CARGO_MANIFEST_DIR");
+
+fn git(args: &[&str]) -> Command {
+    let mut c = Command::new("git");
+    // No credential prompt drawing over the TUI.
+    c.arg("-C").arg(REPO).args(args).env("GIT_TERMINAL_PROMPT", "0");
+    c
+}
+
+/// `git fetch` in the background on launch; sends how many commits behind it is.
+fn check_updates() -> Receiver<usize> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let quiet = |c: &mut Command| c.stdin(Stdio::null()).stderr(Stdio::null()).output().ok();
+        // First launch after `cargo install`: enable hooks/post-merge, unless the
+        // user already set their own hooks path.
+        if quiet(&mut git(&["config", "core.hooksPath"])).is_some_and(|o| o.status.code() == Some(1)) {
+            quiet(&mut git(&["config", "core.hooksPath", "hooks"]));
+        }
+        if !quiet(&mut git(&["fetch", "--quiet"])).is_some_and(|o| o.status.success()) {
+            return;
+        }
+        let n = quiet(&mut git(&["rev-list", "--count", "HEAD..@{u}"]))
+            .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
+            .unwrap_or(0);
+        let _ = tx.send(n);
+    });
+    rx
+}
+
+/// Pull, reinstall and relaunch, in the plain terminal so git/cargo output is visible.
+fn self_update() -> Result<()> {
+    // DEVC_UPDATING: the post-merge hook (hooks/post-merge) would install twice.
+    if !git(&["pull", "--ff-only"]).env("DEVC_UPDATING", "1").status()?.success() {
+        bail!("git pull failed in {REPO}");
+    }
+    let exe = std::env::current_exe()?;
+    // Windows won't overwrite a running .exe, but it will rename it.
+    let old = exe.with_extension("old");
+    if platform::WIN {
+        let _ = std::fs::remove_file(&old);
+        std::fs::rename(&exe, &old)?;
+    }
+    let ok = Command::new("cargo").args(["install", "--locked", "--path", REPO]).status()?.success();
+    if !ok {
+        if platform::WIN {
+            std::fs::rename(&old, &exe)?;
+        }
+        bail!("cargo install failed; devc was not updated");
+    }
+    Command::new(&exe).status()?;
+    Ok(())
 }
 
 impl App {
@@ -58,6 +126,9 @@ impl App {
             last_refresh: Instant::now(),
             pending_refresh: true,
             notice: None,
+            updates: check_updates(),
+            behind: 0,
+            update: false,
         }
     }
 
@@ -77,6 +148,9 @@ impl App {
                 continue;
             }
             if !event::poll(Duration::from_millis(250))? {
+                if let Ok(n) = self.updates.try_recv() {
+                    self.behind = n;
+                }
                 if self.overlay.is_none() && self.last_refresh.elapsed() >= AUTO_REFRESH {
                     self.refresh_active();
                 }
@@ -125,6 +199,10 @@ impl App {
         let n = self.modules.len();
         let prev = self.active;
         match key.code {
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) && self.behind > 0 => {
+                self.update = true;
+                return true;
+            }
             KeyCode::Char('q') | KeyCode::Char('Q') => return true,
             KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                 self.active = (self.active + 1) % n;
@@ -269,11 +347,14 @@ impl App {
                 Line::from(Span::styled(label, style))
             })
             .collect();
-        let brand = if self.pending_refresh { "DevTerminal ⟳" } else { "DevTerminal" };
+        let mut brand = String::from(if self.pending_refresh { "DevTerminal ⟳" } else { "DevTerminal" });
+        if self.behind > 0 {
+            brand += &format!(" · ⬆ {} new commits, Ctrl+U to update", self.behind);
+        }
         f.render_widget(
             Tabs::new(titles)
                 .select(self.active)
-                .block(block_c(brand, active_accent)),
+                .block(block_c(&brand, active_accent)),
             header,
         );
 
