@@ -5,6 +5,7 @@ use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::platform;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
@@ -133,7 +134,11 @@ impl Logs {
         let title = cmd.join(" ");
         let text = run_cmd(&cmd).unwrap_or_else(|e| e.to_string());
         Action::Show {
-            title: if platform::WIN { format!("Service {unit}") } else { title },
+            title: if platform::WIN {
+                format!("{} {unit}", i18n::text("Service", "Servicio"))
+            } else {
+                title
+            },
             text,
         }
     }
@@ -156,12 +161,12 @@ impl Logs {
 
 impl Module for Logs {
     fn title(&self) -> &'static str {
-        "System"
+        i18n::text("System", "Sistema")
     }
 
     fn refresh(&mut self) {
         if !platform::WIN && !has_bin("journalctl") {
-            self.text = "journalctl not available".into();
+            self.text = i18n::text("journalctl not available", "journalctl no está disponible").into();
             return;
         }
         match self.view {
@@ -173,18 +178,18 @@ impl Module for Logs {
     fn draw(&mut self, f: &mut Frame, area: Rect) {
         if self.view == 1 {
             let t = if platform::WIN {
-                "System · [Windows services]"
+                i18n::text("System · [Windows services]", "Sistema · [servicios de Windows]")
             } else {
-                "System · [systemd services]"
+                i18n::text("System · [systemd services]", "Sistema · [servicios de systemd]")
             };
             self.list.draw(f, area, t, self.accent());
             return;
         }
-        let source = if platform::WIN { "event log" } else { "journalctl" };
+        let source = if platform::WIN { i18n::text("event log", "registro de eventos") } else { "journalctl" };
         let title = if self.errors_only {
-            format!("System · [{source} · errors only]")
+            format!("{} · [{source} · {}]", i18n::text("System", "Sistema"), i18n::text("errors only", "solo errores"))
         } else {
-            format!("System · [{source} · all]")
+            format!("{} · [{source} · {}]", i18n::text("System", "Sistema"), i18n::text("all", "todo"))
         };
         f.render_widget(
             Paragraph::new(self.text.as_str())
@@ -243,8 +248,8 @@ impl Module for Logs {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v services · w/s scroll · PgUp/PgDn page · e errors only".into(),
-            _ => "v logs · Enter service log · u start · x stop · t restart".into(),
+            0 => i18n::text("v services · w/s scroll · PgUp/PgDn page · e errors only", "v servicios · w/s desplazar · PgUp/PgDn página · e solo errores").into(),
+            _ => i18n::text("v logs · Enter service log · u start · x stop · t restart", "v registros · Enter registro del servicio · u iniciar · x detener · t reiniciar").into(),
         }
     }
 

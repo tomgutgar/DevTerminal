@@ -5,6 +5,7 @@ use ratatui::Frame;
 use sysinfo::{ProcessesToUpdate, System};
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::platform;
 use crate::theme;
 use crate::ui::ListView;
@@ -23,7 +24,7 @@ impl Procs {
 
 impl Module for Procs {
     fn title(&self) -> &'static str {
-        "Processes"
+        i18n::text("Processes", "Procesos")
     }
 
     fn refresh(&mut self) {
@@ -50,7 +51,7 @@ impl Module for Procs {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        self.list.draw(f, area, "Processes · by CPU (/ filters)", self.accent());
+        self.list.draw(f, area, i18n::text("Processes · by CPU (/ filters)", "Procesos · por CPU (/ filtrar)"), self.accent());
     }
 
     fn on_key(&mut self, key: KeyEvent) -> Action {
@@ -63,12 +64,12 @@ impl Module for Procs {
         match key.code {
             KeyCode::Char('k') => Action::Run {
                 cmd: platform::kill(&pid, false),
-                confirm: Some(format!("Kill process {pid}?")),
+                confirm: Some(if i18n::es() { format!("¿Finalizar el proceso {pid}?") } else { format!("Kill process {pid}?") }),
                 show: false,
             },
             KeyCode::Char('K') => Action::Run {
                 cmd: platform::kill(&pid, true),
-                confirm: Some(format!("Force-kill process {pid}?")),
+                confirm: Some(if i18n::es() { format!("¿Forzar la finalización del proceso {pid}?") } else { format!("Force-kill process {pid}?") }),
                 show: false,
             },
             KeyCode::Char('n') => {
@@ -80,7 +81,11 @@ impl Module for Procs {
     }
 
     fn footer(&self) -> String {
-        if platform::WIN { "k kill · K force · n priority" } else { "k kill · K SIGKILL · n renice" }.into()
+        if platform::WIN {
+            i18n::text("k kill · K force · n priority", "k finalizar · K forzar · n prioridad")
+        } else {
+            i18n::text("k kill · K SIGKILL · n renice", "k finalizar · K SIGKILL · n renice")
+        }.into()
     }
 
     fn accent(&self) -> Color {

@@ -41,7 +41,11 @@ pub fn kill(pid: &str, force: bool) -> Vec<String> {
 pub fn renice(pid: &str) -> (String, Vec<String>) {
     if WIN {
         (
-            format!("Priority for {pid} (Idle · BelowNormal · Normal · AboveNormal · High)"),
+            if crate::i18n::es() {
+                format!("Prioridad de {pid} (Idle · BelowNormal · Normal · AboveNormal · High)")
+            } else {
+                format!("Priority for {pid} (Idle · BelowNormal · Normal · AboveNormal · High)")
+            },
             s(&[
                 "powershell",
                 "-NoProfile",
@@ -51,7 +55,7 @@ pub fn renice(pid: &str) -> (String, Vec<String>) {
         )
     } else {
         (
-            format!("Priority (nice) for {pid}"),
+            if crate::i18n::es() { format!("Prioridad (nice) de {pid}") } else { format!("Priority (nice) for {pid}") },
             s(&["renice", "{}", "-p", pid]),
         )
     }
@@ -119,13 +123,17 @@ pub fn diff_delta(repo: &str, path: &str) -> Vec<String> {
 
 /// Local date, replacing the Unix `date +%A ...` call.
 pub fn now() -> String {
-    const DAYS: [&str; 7] = [
+    const DAYS_EN: [&str; 7] = [
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
     ];
+    const DAYS_ES: [&str; 7] = [
+        "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
+    ];
     let t = Local::now();
+    let days = if crate::i18n::es() { DAYS_ES } else { DAYS_EN };
     format!(
         "{} {}",
-        DAYS[t.weekday().num_days_from_monday() as usize],
+        days[t.weekday().num_days_from_monday() as usize],
         t.format("%d/%m/%Y  %H:%M")
     )
 }

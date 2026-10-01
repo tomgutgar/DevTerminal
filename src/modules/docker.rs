@@ -4,6 +4,7 @@ use ratatui::style::Color;
 use ratatui::Frame;
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
@@ -45,7 +46,7 @@ impl Module for Docker {
 
     fn refresh(&mut self) {
         if !has_bin("docker") {
-            self.list.set_items(vec![("docker is not installed".into(), String::new())]);
+            self.list.set_items(vec![(i18n::text("docker is not installed", "docker no está instalado").into(), String::new())]);
             return;
         }
         if self.view == 4 {
@@ -66,7 +67,7 @@ impl Module for Docker {
                 })
                 .unwrap_or_else(|e| vec![(format!("Error: {e}"), String::new(), None)]);
             if rows.is_empty() {
-                self.list.set_items(vec![("No compose projects".into(), String::new())]);
+                self.list.set_items(vec![(i18n::text("No compose projects", "No hay proyectos de Compose").into(), String::new())]);
             } else {
                 self.list.set_items_styled(rows);
             }
@@ -100,7 +101,7 @@ impl Module for Docker {
                     })
                     .collect();
                 if rows.is_empty() {
-                    self.list.set_items(vec![("(empty)".into(), String::new())]);
+                    self.list.set_items(vec![(i18n::text("(empty)", "(vacío)").into(), String::new())]);
                 } else {
                     self.list.set_items_styled(rows);
                 }
@@ -110,7 +111,14 @@ impl Module for Docker {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        self.list.draw(f, area, &format!("Docker · [{}]", VIEWS[self.view]), self.accent());
+        let view = match self.view {
+            0 => i18n::text("Containers", "Contenedores"),
+            1 => i18n::text("Images", "Imágenes"),
+            2 => i18n::text("Volumes", "Volúmenes"),
+            3 => i18n::text("Networks", "Redes"),
+            _ => "Compose",
+        };
+        self.list.draw(f, area, &format!("Docker · [{view}]"), self.accent());
     }
 
     fn on_key(&mut self, key: KeyEvent) -> Action {
@@ -124,7 +132,7 @@ impl Module for Docker {
         if key.code == KeyCode::Char('P') {
             return Action::Run {
                 cmd: d(&["system", "prune", "-f"]),
-                confirm: Some("Run docker system prune? Removes everything unused.".into()),
+                confirm: Some(i18n::text("Run docker system prune? Removes everything unused.", "¿Ejecutar docker system prune? Eliminará todo lo que no esté en uso.").into()),
                 show: true,
             };
         }
@@ -146,22 +154,22 @@ impl Module for Docker {
             }
             (0, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["rm", "-f", &id]),
-                confirm: Some(format!("Delete container {id}?")),
+                confirm: Some(if i18n::es() { format!("¿Eliminar el contenedor {id}?") } else { format!("Delete container {id}?") }),
                 show: false,
             },
             (1, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["rmi", &id]),
-                confirm: Some(format!("Delete image {id}?")),
+                confirm: Some(if i18n::es() { format!("¿Eliminar la imagen {id}?") } else { format!("Delete image {id}?") }),
                 show: true,
             },
             (2, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["volume", "rm", &id]),
-                confirm: Some(format!("Delete volume {id}?")),
+                confirm: Some(if i18n::es() { format!("¿Eliminar el volumen {id}?") } else { format!("Delete volume {id}?") }),
                 show: true,
             },
             (3, KeyCode::Char('k')) => Action::Run {
                 cmd: d(&["network", "rm", &id]),
-                confirm: Some(format!("Delete network {id}?")),
+                confirm: Some(if i18n::es() { format!("¿Eliminar la red {id}?") } else { format!("Delete network {id}?") }),
                 show: true,
             },
             // Compose: id = path of the project's compose file
@@ -186,9 +194,9 @@ impl Module for Docker {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v view · u start · x stop · t restart · Enter logs · e shell · i inspect · k delete · P prune".into(),
-            4 => "v view · u up -d · x down · Enter logs".into(),
-            _ => "v view · k delete · P prune".into(),
+            0 => i18n::text("v view · u start · x stop · t restart · Enter logs · e shell · i inspect · k delete · P prune", "v vista · u iniciar · x detener · t reiniciar · Enter registros · e shell · i inspeccionar · k eliminar · P limpiar").into(),
+            4 => i18n::text("v view · u up -d · x down · Enter logs", "v vista · u levantar -d · x bajar · Enter registros").into(),
+            _ => i18n::text("v view · k delete · P prune", "v vista · k eliminar · P limpiar").into(),
         }
     }
 

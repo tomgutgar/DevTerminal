@@ -170,7 +170,11 @@ impl ListView {
         let title = if self.filter.is_empty() && !self.filtering {
             title.to_string()
         } else {
-            format!("{title} — filter: {}▏", self.filter)
+            format!(
+                "{title} — {}: {}▏",
+                crate::i18n::text("filter", "filtro"),
+                self.filter
+            )
         };
         let items: Vec<ListItem> = self
             .visible()

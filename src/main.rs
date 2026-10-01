@@ -1,4 +1,5 @@
 mod config;
+mod i18n;
 mod modules;
 mod platform;
 mod runner;
@@ -41,6 +42,7 @@ struct App {
 
 fn main() -> Result<()> {
     let cfg = config::load()?;
+    i18n::init(&cfg.language);
     theme::init(&cfg.theme);
     let mut terminal = ratatui::init();
     let res = App::new(&cfg).run(&mut terminal);
@@ -136,8 +138,8 @@ impl App {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 if let Some(text) = self.modules[self.active].clip() {
                     self.notice = Some(match runner::copy_clip(&text) {
-                        Ok(()) => format!("Copied: {text}"),
-                        Err(e) => format!("Clipboard: {e}"),
+                        Ok(()) => format!("{}: {text}", i18n::text("Copied", "Copiado")),
+                        Err(e) => format!("{}: {e}", i18n::text("Clipboard", "Portapapeles")),
                     });
                 }
             }
@@ -216,14 +218,14 @@ impl App {
             }
             Err(e) => {
                 self.overlay = Some(Overlay::Pane {
-                    title: format!("Error · {}", cmd.join(" ")),
+                    title: format!("{} · {}", i18n::text("Error", "Error"), cmd.join(" ")),
                     text: e.to_string(),
                     scroll: 0,
                 });
             }
         }
         if start.elapsed() > Duration::from_secs(10) {
-            runner::notify("Command finished", &cmd.join(" "));
+            runner::notify(i18n::text("Command finished", "Comando finalizado"), &cmd.join(" "));
         }
         self.refresh_active();
     }
@@ -241,7 +243,7 @@ impl App {
         let _ = terminal.clear();
         if let Err(e) = status {
             self.overlay = Some(Overlay::Pane {
-                title: "Error".into(),
+                title: i18n::text("Error", "Error").into(),
                 text: format!("{}: {e}", cmd[0]),
                 scroll: 0,
             });
@@ -284,7 +286,13 @@ impl App {
             None => {
                 let hints = self.modules[self.active].footer();
                 let sep = if hints.is_empty() { "" } else { " · " };
-                format!(" {hints}{sep}y copy · Tab/A/D module · 1-9 jump · R refresh · Q quit")
+                format!(
+                    " {hints}{sep}{}",
+                    i18n::text(
+                        "y copy · Tab/A/D module · 1-9 jump · R refresh · Q quit",
+                        "y copiar · Tab/A/D módulo · 1-9 ir a módulo · R actualizar · Q salir",
+                    )
+                )
             }
         };
         f.render_widget(
@@ -298,7 +306,10 @@ impl App {
                 f.render_widget(Clear, area);
                 f.render_widget(
                     Paragraph::new(text.as_str())
-                        .block(block(&format!("{title} — w/s scroll · Esc closes")))
+                        .block(block(&format!(
+                            "{title} — {}",
+                            i18n::text("w/s scroll · Esc closes", "w/s desplazar · Esc cerrar")
+                        )))
                         .wrap(Wrap { trim: false })
                         .scroll((*scroll, 0)),
                     area,
@@ -308,8 +319,11 @@ impl App {
                 let area = centered(f.area(), 60, 25);
                 f.render_widget(Clear, area);
                 f.render_widget(
-                    Paragraph::new(format!("{msg}\n\nEnter/y confirm · Esc/n cancel"))
-                        .block(block("Confirm"))
+                    Paragraph::new(format!(
+                        "{msg}\n\n{}",
+                        i18n::text("Enter/y confirm · Esc/n cancel", "Enter/y confirmar · Esc/n cancelar")
+                    ))
+                        .block(block(i18n::text("Confirm", "Confirmar")))
                         .wrap(Wrap { trim: false }),
                     area,
                 );
@@ -318,8 +332,11 @@ impl App {
                 let area = centered(f.area(), 60, 25);
                 f.render_widget(Clear, area);
                 f.render_widget(
-                    Paragraph::new(format!("{label}\n\n> {input}▏\n\nEnter accept · Esc cancel"))
-                        .block(block("Input"))
+                    Paragraph::new(format!(
+                        "{label}\n\n> {input}▏\n\n{}",
+                        i18n::text("Enter accept · Esc cancel", "Enter aceptar · Esc cancelar")
+                    ))
+                        .block(block(i18n::text("Input", "Entrada")))
                         .wrap(Wrap { trim: false }),
                     area,
                 );

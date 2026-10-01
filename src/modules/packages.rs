@@ -4,6 +4,7 @@ use ratatui::style::Color;
 use ratatui::Frame;
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::platform;
 use crate::runner::{has_bin, run_out};
 use crate::theme;
@@ -229,7 +230,7 @@ impl Packages {
 
 impl Module for Packages {
     fn title(&self) -> &'static str {
-        "Packages"
+        i18n::text("Packages", "Paquetes")
     }
 
     fn refresh(&mut self) {
@@ -239,7 +240,10 @@ impl Module for Packages {
         }
         let Some(pm) = self.pm else {
             self.list.set_items(vec![(
-                "No known package manager (pacman/paru/yay, apt, dnf, zypper, apk, winget, scoop, choco)".into(),
+                i18n::text(
+                    "No known package manager (pacman/paru/yay, apt, dnf, zypper, apk, winget, scoop, choco)",
+                    "No se encontró un gestor de paquetes compatible (pacman/paru/yay, apt, dnf, zypper, apk, winget, scoop, choco)",
+                ).into(),
                 String::new(),
             )]);
             return;
@@ -254,7 +258,7 @@ impl Module for Packages {
             })
             .unwrap_or_default();
         if rows.is_empty() {
-            self.list.set_items(vec![("System up to date ✓".into(), String::new())]);
+            self.list.set_items(vec![(i18n::text("System up to date ✓", "Sistema actualizado ✓").into(), String::new())]);
         } else {
             self.list.set_items(rows);
         }
@@ -265,7 +269,11 @@ impl Module for Packages {
         self.list.draw(
             f,
             area,
-            &format!("Packages · pending updates (manager: {manager})"),
+            &if i18n::es() {
+                format!("Paquetes · actualizaciones pendientes (gestor: {manager})")
+            } else {
+                format!("Packages · pending updates (manager: {manager})")
+            },
             self.accent(),
         );
     }
@@ -280,20 +288,20 @@ impl Module for Packages {
         match key.code {
             KeyCode::Char('U') => Action::Interactive(self.cmd(pm.upgrade)),
             KeyCode::Char('b') => Action::Prompt {
-                label: "Search package".into(),
+                label: i18n::text("Search package", "Buscar paquete").into(),
                 // Searching needs no privileges.
                 template: pm.search.iter().map(|s| s.to_string()).collect(),
                 interactive: false,
                 show: true,
             },
             KeyCode::Char('i') => Action::Prompt {
-                label: "Package to install".into(),
+                label: i18n::text("Package to install", "Paquete que instalar").into(),
                 template: self.cmd(pm.install),
                 interactive: true,
                 show: false,
             },
             KeyCode::Char('x') => Action::Prompt {
-                label: "Package to remove".into(),
+                label: i18n::text("Package to remove", "Paquete que eliminar").into(),
                 // The manager asks for confirmation itself
                 template: self.cmd(pm.remove),
                 interactive: true,
@@ -305,7 +313,7 @@ impl Module for Packages {
     }
 
     fn footer(&self) -> String {
-        "U upgrade all · b search · i install · x remove · l clean cache".into()
+        i18n::text("U upgrade all · b search · i install · x remove · l clean cache", "U actualizar todo · b buscar · i instalar · x eliminar · l limpiar caché").into()
     }
 
     fn accent(&self) -> Color {

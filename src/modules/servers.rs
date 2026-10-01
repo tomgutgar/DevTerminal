@@ -7,6 +7,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 
 use super::{Action, Module};
 use crate::config::{expand_home, Server};
+use crate::i18n;
 use crate::platform;
 use crate::runner::run_cmd;
 use crate::theme;
@@ -172,7 +173,7 @@ impl Servers {
                     ];
                     if exposed {
                         spans.push(Span::styled(
-                            "  ⚠ exposed to the network",
+                            i18n::text("  ⚠ exposed to the network", "  ⚠ expuesto a la red"),
                             Style::default().fg(p.orange),
                         ));
                     }
@@ -183,7 +184,10 @@ impl Servers {
         };
         if rows.is_empty() {
             self.list.set_items(vec![(
-                "No development servers listening (t shows all ports)".into(),
+                i18n::text(
+                    "No development servers listening (t shows all ports)",
+                    "No hay servidores de desarrollo a la escucha (t muestra todos los puertos)",
+                ).into(),
                 String::new(),
             )]);
         } else {
@@ -225,7 +229,10 @@ impl Servers {
         }
         if rows.is_empty() {
             rows.push((
-                Line::raw("No hosts: add entries to ~/.ssh/config or [[servers]] in config.toml"),
+                Line::raw(i18n::text(
+                    "No hosts: add entries to ~/.ssh/config or [[servers]] in config.toml",
+                    "No hay equipos: añade entradas a ~/.ssh/config o [[servers]] en config.toml",
+                )),
                 String::new(),
             ));
         }
@@ -297,7 +304,15 @@ impl Servers {
                     ));
                 }
                 ["GW", gw, iface] => {
-                    rows.push((format!("\u{21e1} default via {gw} dev {iface}"), String::new(), None))
+                    rows.push((
+                        if i18n::es() {
+                            format!("\u{21e1} ruta predeterminada por {gw} en {iface}")
+                        } else {
+                            format!("\u{21e1} default via {gw} dev {iface}")
+                        },
+                        String::new(),
+                        None,
+                    ))
                 }
                 ["DNS", ns] => rows.push((format!("\u{2726} DNS {ns}"), ns.to_string(), None)),
                 _ => {}
@@ -309,7 +324,7 @@ impl Servers {
 
 impl Module for Servers {
     fn title(&self) -> &'static str {
-        "Servers"
+        i18n::text("Servers", "Servidores")
     }
 
     fn refresh(&mut self) {
@@ -321,9 +336,18 @@ impl Module for Servers {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        let mut title = format!("Servers · [{}]", VIEWS[self.view]);
+        let view = match self.view {
+            0 => i18n::text("Ports", "Puertos"),
+            1 => "SSH",
+            _ => i18n::text("Network", "Red"),
+        };
+        let mut title = format!("{} · [{view}]", i18n::text("Servers", "Servidores"));
         if self.view == 0 {
-            title.push_str(if self.show_all { " · all" } else { " · dev only" });
+            title.push_str(if self.show_all {
+                i18n::text(" · all", " · todos")
+            } else {
+                i18n::text(" · dev only", " · solo desarrollo")
+            });
         }
         self.list.draw(f, area, &title, self.accent());
     }
@@ -345,7 +369,7 @@ impl Module for Servers {
             match key.code {
                 KeyCode::Char('p') => {
                     return Action::Prompt {
-                        label: "Host to ping".into(),
+                        label: i18n::text("Host to ping", "Equipo al que hacer ping").into(),
                         // Windows ping sends 4 packets and stops; -t keeps it going like Linux.
                         template: if platform::WIN {
                             vec!["ping".into(), "-t".into(), "{}".into()]
@@ -358,7 +382,7 @@ impl Module for Servers {
                 }
                 KeyCode::Char('t') => {
                     return Action::Prompt {
-                        label: "Host to traceroute".into(),
+                        label: i18n::text("Host to traceroute", "Equipo para la traza de ruta").into(),
                         template: vec![
                             if platform::WIN { "tracert".to_string() } else { "traceroute".to_string() },
                             "{}".into(),
@@ -378,7 +402,7 @@ impl Module for Servers {
                 let pid = id.split('\t').next().unwrap_or(&id).to_string();
                 Action::Run {
                     cmd: platform::kill(&pid, false),
-                    confirm: Some(format!("Kill the process with pid {pid}?")),
+                    confirm: Some(if i18n::es() { format!("¿Finalizar el proceso con PID {pid}?") } else { format!("Kill the process with pid {pid}?") }),
                     show: false,
                 }
             }
@@ -399,13 +423,22 @@ impl Module for Servers {
                 if !crate::runner::has_bin("ssh-copy-id") {
                     let target = cmd.last().cloned().unwrap_or_default();
                     return Action::Show {
-                        title: "ssh-copy-id not available".into(),
-                        text: format!(
-                            "The OpenSSH shipped with Windows has no ssh-copy-id.\n\n\
-                             PowerShell equivalent, with the public key already generated (key g):\n\n\
-                             type $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh {target} \
-                             \"mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys\"\n"
-                        ),
+                        title: i18n::text("ssh-copy-id not available", "ssh-copy-id no está disponible").into(),
+                        text: if i18n::es() {
+                            format!(
+                                "El OpenSSH incluido con Windows no dispone de ssh-copy-id.\n\n\
+                                 Comando equivalente en PowerShell, con la clave pública ya generada (tecla g):\n\n\
+                                 type $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh {target} \
+                                 \"mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys\"\n"
+                            )
+                        } else {
+                            format!(
+                                "The OpenSSH shipped with Windows has no ssh-copy-id.\n\n\
+                                 PowerShell equivalent, with the public key already generated (key g):\n\n\
+                                 type $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh {target} \
+                                 \"mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys\"\n"
+                            )
+                        },
                     };
                 }
                 Action::Interactive(cmd)
@@ -416,9 +449,9 @@ impl Module for Servers {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v view · Enter/o open in browser (or Ctrl+click the URL) · k kill process · t all/dev".into(),
-            1 => "v view · Enter connect · c copy key (ssh-copy-id) · g generate keys".into(),
-            _ => "v view · p ping · t traceroute".into(),
+            0 => i18n::text("v view · Enter/o open in browser (or Ctrl+click the URL) · k kill process · t all/dev", "v vista · Enter/o abrir en navegador (o Ctrl+clic en la URL) · k finalizar proceso · t todos/desarrollo").into(),
+            1 => i18n::text("v view · Enter connect · c copy key (ssh-copy-id) · g generate keys", "v vista · Enter conectar · c copiar clave (ssh-copy-id) · g generar claves").into(),
+            _ => i18n::text("v view · p ping · t traceroute", "v vista · p ping · t traza de ruta").into(),
         }
     }
 

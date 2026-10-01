@@ -4,6 +4,7 @@ use ratatui::style::Color;
 use ratatui::Frame;
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
@@ -75,7 +76,7 @@ impl Module for K8s {
 
     fn refresh(&mut self) {
         if !has_bin("kubectl") {
-            self.list.set_items(vec![("kubectl is not installed".into(), String::new())]);
+            self.list.set_items(vec![(i18n::text("kubectl is not installed", "kubectl no está instalado").into(), String::new())]);
             return;
         }
         let mut cmd = vec!["kubectl".to_string(), "get".into(), self.resource().into()];
@@ -103,7 +104,7 @@ impl Module for K8s {
                     })
                     .collect();
                 if rows.is_empty() {
-                    self.list.set_items(vec![("(empty)".into(), String::new())]);
+                    self.list.set_items(vec![(i18n::text("(empty)", "(vacío)").into(), String::new())]);
                 } else {
                     self.list.set_items_styled(rows);
                 }
@@ -113,7 +114,14 @@ impl Module for K8s {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
-        self.list.draw(f, area, &format!("Kubernetes · [{}]", VIEWS[self.view].0), self.accent());
+        let view = match self.view {
+            0 => "Pods",
+            1 => i18n::text("Deployments", "Despliegues"),
+            2 => i18n::text("Services", "Servicios"),
+            3 => i18n::text("Nodes", "Nodos"),
+            _ => i18n::text("Namespaces", "Espacios de nombres"),
+        };
+        self.list.draw(f, area, &format!("Kubernetes · [{view}]"), self.accent());
     }
 
     fn on_key(&mut self, key: KeyEvent) -> Action {
@@ -148,7 +156,7 @@ impl Module for K8s {
                 show: true,
             },
             KeyCode::Char('c') if self.view == 1 => Action::Prompt {
-                label: "Number of replicas".into(),
+                label: i18n::text("Number of replicas", "Número de réplicas").into(),
                 template: {
                     let mut c = self.kubectl(&id, &["scale", "deployment"]);
                     c.push("--replicas={}".into());
@@ -159,7 +167,7 @@ impl Module for K8s {
             },
             KeyCode::Char('k') => Action::Run {
                 cmd: self.kubectl(&id, &["delete", self.resource()]),
-                confirm: Some(format!("Delete {} {id}?", self.resource())),
+                confirm: Some(if i18n::es() { format!("¿Eliminar {} {id}?", self.resource()) } else { format!("Delete {} {id}?", self.resource()) }),
                 show: true,
             },
             _ => Action::Ignored,
@@ -167,7 +175,7 @@ impl Module for K8s {
     }
 
     fn footer(&self) -> String {
-        "v view · Enter logs/describe · e shell · t rollout restart · c scale · k delete".into()
+        i18n::text("v view · Enter logs/describe · e shell · t rollout restart · c scale · k delete", "v vista · Enter registros/descripción · e shell · t reiniciar despliegue · c escalar · k eliminar").into()
     }
 
     fn accent(&self) -> Color {

@@ -110,7 +110,10 @@ pub fn copy_clip(text: &str) -> Result<()> {
     } else if has_bin("xsel") {
         &["xsel", "-ib"]
     } else {
-        bail!("no clipboard tool (install wl-clipboard or xclip)");
+        bail!("{}", crate::i18n::text(
+            "no clipboard tool (install wl-clipboard or xclip)",
+            "no hay herramienta de portapapeles (instala wl-clipboard o xclip)",
+        ));
     };
     let mut child = Command::new(program(cmd[0]))
         .args(&cmd[1..])

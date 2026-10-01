@@ -9,6 +9,7 @@ use ratatui::Frame;
 use sysinfo::{Disks, System};
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::platform;
 use crate::runner;
 use crate::theme;
@@ -68,7 +69,7 @@ fn parse_gpu(out: &str) -> Option<Gpu> {
 
 impl Module for Dashboard {
     fn title(&self) -> &'static str {
-        "Dashboard"
+        i18n::text("Dashboard", "Panel")
     }
 
     fn refresh(&mut self) {
@@ -114,21 +115,36 @@ impl Module for Dashboard {
         // load_average doesn't exist on Windows (sysinfo returns zeros).
         let load = System::load_average();
         let load_txt = if platform::WIN {
-            "n/a on Windows".to_string()
+            i18n::text("n/a on Windows", "no disponible en Windows").to_string()
         } else {
             format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen)
         };
         // ponytail: docker is queried on refresh, not live; async refresh when it hurts
         let docker = if runner::has_bin("docker") {
             runner::run_cmd(&["docker".into(), "ps".into(), "-q".into()])
-                .map(|o| format!("{} containers running", o.lines().count()))
-                .unwrap_or_else(|_| "daemon stopped".into())
+                .map(|o| {
+                    let count = o.lines().count();
+                    if i18n::es() {
+                        if count == 1 {
+                            "1 contenedor en ejecución".to_string()
+                        } else {
+                            format!("{count} contenedores en ejecución")
+                        }
+                    } else {
+                        if count == 1 {
+                            "1 container running".to_string()
+                        } else {
+                            format!("{count} containers running")
+                        }
+                    }
+                })
+                .unwrap_or_else(|_| i18n::text("daemon stopped", "servicio detenido").into())
         } else {
-            "not installed".into()
+            i18n::text("not installed", "no instalado").into()
         };
         self.info = vec![
             (
-                "Host",
+                i18n::text("Host", "Equipo"),
                 format!(
                     "{} ({} {})",
                     System::host_name().unwrap_or_default(),
@@ -136,14 +152,14 @@ impl Module for Dashboard {
                     System::os_version().unwrap_or_default()
                 ),
             ),
-            ("Kernel", System::kernel_version().unwrap_or_default()),
+            (i18n::text("Kernel", "Kernel"), System::kernel_version().unwrap_or_default()),
             (
-                "Uptime",
+                i18n::text("Uptime", "Tiempo activo"),
                 format!("{} h {} min", System::uptime() / 3600, System::uptime() % 3600 / 60),
             ),
-            ("Load", load_txt),
+            (i18n::text("Load", "Carga"), load_txt),
             ("Docker", docker),
-            ("Date", platform::now()),
+            (i18n::text("Date", "Fecha"), platform::now()),
         ];
     }
 
@@ -186,7 +202,7 @@ impl Module for Dashboard {
         );
         f.render_widget(
             gauge(
-                format!("Swap {:.1}/{:.1} GiB", gib(self.swap.0), gib(self.swap.1)),
+                format!("{} {:.1}/{:.1} GiB", i18n::text("Swap", "Intercambio"), gib(self.swap.0), gib(self.swap.1)),
                 self.swap.0 as f64 / self.swap.1 as f64,
                 p.yellow,
             ),
@@ -231,7 +247,7 @@ impl Module for Dashboard {
             })
             .collect();
         f.render_widget(
-            Paragraph::new(disk_lines).block(block_c("Disks", self.accent())),
+            Paragraph::new(disk_lines).block(block_c(i18n::text("Disks", "Discos"), self.accent())),
             disks,
         );
 
@@ -252,7 +268,7 @@ impl Module for Dashboard {
             })
             .collect();
         f.render_widget(
-            Paragraph::new(info_lines).block(block_c("System", self.accent())),
+            Paragraph::new(info_lines).block(block_c(i18n::text("System", "Sistema"), self.accent())),
             right,
         );
     }

@@ -7,6 +7,7 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct Config {
     pub theme: String,
+    pub language: String,
     pub workspaces: Vec<String>,
     pub servers: Vec<Server>,
 }
@@ -28,6 +29,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             theme: "dark".into(),
+            language: "en".into(),
             workspaces: Vec::new(),
             servers: Vec::new(),
         }
@@ -89,6 +91,7 @@ user = "root"
         )
         .unwrap();
         assert_eq!(c.theme, "dark");
+        assert_eq!(c.language, "en");
         assert_eq!(c.workspaces, ["~/Projects"]);
         assert_eq!(c.servers[0].alias, "vps");
         assert_eq!(c.servers[0].port, None);

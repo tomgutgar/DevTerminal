@@ -4,6 +4,7 @@ use ratatui::style::Color;
 use ratatui::Frame;
 
 use super::{Action, Module};
+use crate::i18n;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
 use crate::ui::ListView;
@@ -55,7 +56,7 @@ impl Module for GitHub {
 
     fn refresh(&mut self) {
         if !has_bin("gh") {
-            self.list.set_items(vec![("gh (GitHub CLI) is not installed".into(), String::new())]);
+            self.list.set_items(vec![(i18n::text("gh (GitHub CLI) is not installed", "gh (GitHub CLI) no está instalado").into(), String::new())]);
             return;
         }
         let cmd: Vec<String> = match self.view {
@@ -76,7 +77,7 @@ impl Module for GitHub {
                     })
                     .collect();
                 if rows.is_empty() {
-                    self.list.set_items(vec![("No results".into(), String::new())]);
+                    self.list.set_items(vec![(i18n::text("No results", "Sin resultados").into(), String::new())]);
                 } else {
                     self.list.set_items(rows);
                 }
@@ -86,11 +87,13 @@ impl Module for GitHub {
                 if self.view != 0 && self.repo.is_none() {
                     rows.push((String::new(), String::new()));
                     rows.push((
-                        "→ No context repo: go to the Repos view (v) and pin one with Space,"
-                            .into(),
+                        i18n::text(
+                            "→ No context repo: go to the Repos view (v) and pin one with Space,",
+                            "→ No hay repositorio de contexto: ve a Repos (v) y fija uno con Espacio,",
+                        ).into(),
                         String::new(),
                     ));
-                    rows.push(("  or launch devc inside a repository.".into(), String::new()));
+                    rows.push((i18n::text("  or launch devc inside a repository.", "  o inicia devc dentro de un repositorio.").into(), String::new()));
                 }
                 self.list.set_items(rows);
             }
@@ -100,9 +103,15 @@ impl Module for GitHub {
     fn draw(&mut self, f: &mut Frame, area: Rect) {
         let ctx = match &self.repo {
             Some(r) => format!("repo: {r}"),
-            None => "cwd repo".into(),
+            None => i18n::text("cwd repo", "repo del directorio actual").into(),
         };
-        let title = format!("GitHub · [{}] · {ctx}", VIEWS[self.view].0);
+        let view = match self.view {
+            0 => i18n::text("Repos", "Repos"),
+            1 => i18n::text("Issues", "Incidencias"),
+            2 => i18n::text("PRs", "PRs"),
+            _ => i18n::text("Actions", "Acciones"),
+        };
+        let title = format!("GitHub · [{view}] · {ctx}");
         self.list.draw(f, area, &title, self.accent());
     }
 
@@ -144,7 +153,7 @@ impl Module for GitHub {
             KeyCode::Char('x') if self.view == 3 => match id {
                 Some(id) => Action::Run {
                     cmd: self.gh(&["run", "rerun", &id]),
-                    confirm: Some("Re-run this workflow?".into()),
+                    confirm: Some(i18n::text("Re-run this workflow?", "¿Volver a ejecutar este flujo?").into()),
                     show: true,
                 },
                 None => Action::Handled,
@@ -155,9 +164,9 @@ impl Module for GitHub {
 
     fn footer(&self) -> String {
         match self.view {
-            0 => "v view · Space pin context repo · Enter details · o open in browser".into(),
-            3 => "v view · Enter details · o open in browser · x re-run".into(),
-            _ => "v view · Enter details · o open in browser".into(),
+            0 => i18n::text("v view · Space pin context repo · Enter details · o open in browser", "v vista · Espacio fijar repo de contexto · Enter detalles · o abrir en navegador").into(),
+            3 => i18n::text("v view · Enter details · o open in browser · x re-run", "v vista · Enter detalles · o abrir en navegador · x volver a ejecutar").into(),
+            _ => i18n::text("v view · Enter details · o open in browser", "v vista · Enter detalles · o abrir en navegador").into(),
         }
     }
 

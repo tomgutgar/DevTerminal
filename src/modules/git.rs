@@ -7,6 +7,7 @@ use ratatui::Frame;
 
 use super::{Action, Module};
 use crate::config::expand_home;
+use crate::i18n;
 use crate::platform;
 use crate::runner::{has_bin, run_cmd};
 use crate::theme;
@@ -101,7 +102,10 @@ impl GitMod {
         }
         if rows.is_empty() {
             rows.push((
-                "No Git repository in this directory (and no workspaces with repos in config.toml)".into(),
+                i18n::text(
+                    "No Git repository in this directory (and no workspaces with repos in config.toml)",
+                    "No hay un repositorio Git en este directorio ni espacios de trabajo con repos en config.toml",
+                ).into(),
                 String::new(),
             ));
         }
@@ -136,7 +140,7 @@ impl Module for GitMod {
                         }))
                         .collect();
                     if rows.is_empty() {
-                        vec![("Working tree clean ✓".to_string(), String::new(), None)]
+                        vec![(i18n::text("Working tree clean ✓", "Árbol de trabajo limpio ✓").to_string(), String::new(), None)]
                     } else {
                         rows
                     }
@@ -160,8 +164,15 @@ impl Module for GitMod {
 
     fn draw(&mut self, f: &mut Frame, area: Rect) {
         let title = match &self.repo {
-            Some(p) => format!("Git · {} · branch {} · [{}]", p.display(), self.branch, VIEWS[self.view]),
-            None => "Git · choose a repository".to_string(),
+            Some(p) => {
+                let view = match self.view {
+                    0 => i18n::text("Status", "Estado"),
+                    1 => "Log",
+                    _ => i18n::text("Branches", "Ramas"),
+                };
+                format!("Git · {} · {} {} · [{view}]", p.display(), i18n::text("branch", "rama"), self.branch)
+            }
+            None => i18n::text("Git · choose a repository", "Git · elige un repositorio").to_string(),
         };
         self.list.draw(f, area, &title, self.accent());
     }
@@ -197,7 +208,7 @@ impl Module for GitMod {
             KeyCode::Char('p') => Action::Run { cmd: self.git(&["pull"]), confirm: None, show: true },
             KeyCode::Char('P') => Action::Run { cmd: self.git(&["push"]), confirm: None, show: true },
             KeyCode::Char('c') => Action::Prompt {
-                label: "Commit message".into(),
+                label: i18n::text("Commit message", "Mensaje del commit").into(),
                 template: self.git(&["commit", "-m", "{}"]),
                 interactive: false,
                 show: true,
@@ -254,9 +265,9 @@ impl Module for GitMod {
 
     fn footer(&self) -> String {
         if self.repo.is_none() {
-            "Enter open repo".into()
+            i18n::text("Enter open repo", "Enter abrir repositorio").into()
         } else {
-            "v view · Space stage · Enter diff/checkout · E edit · c commit · p pull · P push · e fetch · o other repo".into()
+            i18n::text("v view · Space stage · Enter diff/checkout · E edit · c commit · p pull · P push · e fetch · o other repo", "v vista · Espacio preparar · Enter diff/cambiar rama · E editar · c commit · p pull · P push · e fetch · o otro repo").into()
         }
     }
 

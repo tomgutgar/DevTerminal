@@ -91,6 +91,9 @@ File at `~/.config/devterminal/config.toml` on Linux (`$XDG_CONFIG_HOME` is hono
 # Color theme: re-colors the whole TUI
 theme = "nord"           # nord (default) · catppuccin · gruvbox
 
+# Interface language: English (default) or Spanish
+language = "es"          # en · es
+
 # Directories to look for repos in when devc is launched outside one
 # (one level only; the disk is never scanned)
 workspaces = ["~/Projects"]
